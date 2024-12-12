@@ -9,6 +9,7 @@ Additionally, a ```Dictionary``` is required. While you can use Scripting.Dictio
 - it is Mac compatible
 - faster in almost every way - see [Benchmarking VBA-FastDictionary](https://github.com/cristianbuse/VBA-FastDictionary/blob/master/benchmarking/README.md)
 - hashes numbers better
+
 For more information see [Cons of Scripting.Dictionary](https://github.com/cristianbuse/VBA-FastDictionary/blob/master/benchmarking/README.md#scriptingdictionary)
 
 ## Implementation
