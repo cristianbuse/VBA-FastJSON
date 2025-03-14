@@ -399,7 +399,7 @@ Private Sub InitBOM(ByRef b As BOM _
                   , ByVal jpCode As JsonPageCode _
                   , ParamArray bomBytes() As Variant)
     Dim i As Long
-    b.jpCode = jpCodeUTF16BE
+    b.jpCode = jpCode
     b.sizeB = UBound(bomBytes) + 1
     ReDim b.b(0 To b.sizeB - 1)
     For i = 0 To b.sizeB - 1
@@ -451,7 +451,7 @@ Private Function Decode(ByVal jsonPtr As LongPtr _
                       , ByRef outBuffSize As Long _
                       , ByRef outBuffPtr As LongPtr _
                       , ByRef outErrDesc As String _
-                      , ByVal failIfInvalidByteSequence) As Boolean
+                      , ByVal failIfInvalidByteSequence As Boolean) As Boolean
     #If Mac Then
         outBuff = Space$(sizeB * 2)
         outBuffSize = sizeB * 4
@@ -742,7 +742,6 @@ Private Function ParseChars(ByRef inChars() As Integer _
             Dim wasHighSurrogate As Boolean: wasHighSurrogate = False
             Dim isLowSurrogate As Boolean
             Dim endFound As Boolean: endFound = False
-            Dim qqq As Long: qqq = i
             '
             j = 0
             For i = i + 1 To UB
@@ -934,7 +933,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
 Exit Function
 Unexpected:
     If i <= UB Then
-        If ch < 33 Or ch > 125 Then v = "\u" & Right$("000" & Hex(ch), 4) _
+        If ch < 33 Or ch > 125 Then v = "\u" & Right$("000" & Hex$(ch), 4) _
                                Else: v = ChrW$(ch)
         If cInfo.tAllow = allowNone Then Err.Raise 5, , "Extra " & v
         If cInfo.tAllow And allowValue Then Err.Raise 5, , "Unexpected " & v

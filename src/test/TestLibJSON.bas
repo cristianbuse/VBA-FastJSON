@@ -110,7 +110,7 @@ End Sub
 
 Private Sub TestParseWhitespaceInvalid()
     Debug.Assert Not Parse(vbFormFeed & "1").IsValid
-    Debug.Assert Not Parse(ChrW(&H2060) & "0").IsValid 'Word Joiner (WJ)
+    Debug.Assert Not Parse(ChrW$(&H2060) & "0").IsValid 'Word Joiner (WJ)
 End Sub
 
 Private Sub TestParseArrayValid()
@@ -199,7 +199,7 @@ Private Sub TestParseArrayInvalidMisc()
     Debug.Assert Not Parse("[,").IsValid
     Debug.Assert Not Parse("[""abc""\f]").IsValid
     Debug.Assert Not Parse("[a]").IsValid
-    Debug.Assert Not Parse("[" & ChrW(1234) & "]").IsValid
+    Debug.Assert Not Parse("[" & ChrW$(1234) & "]").IsValid
     Debug.Assert Not Parse("[" & vbFormFeed & "]").IsValid
     Debug.Assert Not Parse(String$(512, "[")).IsValid
     Debug.Assert Not Parse(RepeatString("[{"""":", 512)).IsValid
@@ -291,7 +291,6 @@ Private Sub TestParseObjectValidNesting()
     Dim v As Dictionary
     Dim i As Long
     Dim h As Dictionary
-    Dim s As Single
     '
     Set v = Parse(RepeatString("{""key"":", nestingLevel - 1) & "{" _
                     & String$(nestingLevel, "}"), maxNestingDepth:=nestingLevel).Value
@@ -558,17 +557,17 @@ Private Sub TestParseNumberInvalid()
     Debug.Assert Not Parse("1.2a").IsValid
     Debug.Assert Not Parse("-1.2a").IsValid
     Debug.Assert Not Parse("112a").IsValid
-    Debug.Assert Not Parse(StrConv("112", vbFromUnicode) & ChrW(&HE55D)).IsValid
-    Debug.Assert Not Parse(StrConv("1E2", vbFromUnicode) & ChrW(&HE55D)).IsValid
-    Debug.Assert Not Parse(StrConv("1", vbFromUnicode) & ChrW(&HE55D)).IsValid
+    Debug.Assert Not Parse(StrConv("112", vbFromUnicode) & ChrW$(&HE55D)).IsValid
+    Debug.Assert Not Parse(StrConv("1E2", vbFromUnicode) & ChrW$(&HE55D)).IsValid
+    Debug.Assert Not Parse(StrConv("1", vbFromUnicode) & ChrW$(&HE55D)).IsValid
     Debug.Assert Not Parse("-abc").IsValid
     Debug.Assert Not Parse("- 7").IsValid
     Debug.Assert Not Parse("-07").IsValid
     Debug.Assert Not Parse("-.7").IsValid
     Debug.Assert Not Parse("-0x").IsValid
     Debug.Assert Not Parse("1ex").IsValid
-    Debug.Assert Not Parse("1e" & ChrW(&HE55D)).IsValid
-    Debug.Assert Not Parse(ChrW(-239)).IsValid 'U+FF11 (Fullwidth Digit One Unicode Character)
+    Debug.Assert Not Parse("1e" & ChrW$(&HE55D)).IsValid
+    Debug.Assert Not Parse(ChrW$(-239)).IsValid 'U+FF11 (Fullwidth Digit One Unicode Character)
     Debug.Assert Not Parse("1a3").IsValid
     Debug.Assert Not Parse("1.2a3").IsValid
     Debug.Assert Not Parse("1.2a-3").IsValid
