@@ -211,8 +211,8 @@ Private Sub TestParseArrayInvalidMisc()
     Debug.Assert Not Parse("[""abc]").IsValid
     Debug.Assert Not Parse("[][]").IsValid
     Debug.Assert Not Parse("[""a"", a]").IsValid
-    Debug.Assert Not Parse(BytesToString(&H5B, &HFF, &H5D)).IsValid '[ÿ]
-    Debug.Assert Not Parse(BytesToString(&H5B, &H61, &HE5, &H5D)).IsValid '[aå]
+    Debug.Assert Not Parse(BytesToString(&H5B, &HFF, &H5D)).IsValid
+    Debug.Assert Not Parse(BytesToString(&H5B, &H61, &HE5, &H5D)).IsValid
 End Sub
 
 Private Sub TestParseArrayInvalidUnclosed()
@@ -341,7 +341,7 @@ Private Sub TestParseObjectInvalidMisc()
     Debug.Assert Not Parse(BytesToString(&H7B, &HF0, &H9F, &H87, &HA8, &HF0, &H9F, &H87, &HAD, &H7D)).IsValid '{Emoji}
     Debug.Assert Not Parse("{""a"":""a"" 123}").IsValid
     Debug.Assert Not Parse("{key: 'value'}").IsValid
-    Debug.Assert Not Parse(BytesToString(&H7B, &H22, &HB9, &H22, &H3A, &H22, &H30, &H22, &H2C, &H7D)).IsValid '{"¹":"0",}
+    Debug.Assert Not Parse(BytesToString(&H7B, &H22, &HB9, &H22, &H3A, &H22, &H30, &H22, &H2C, &H7D)).IsValid
     Debug.Assert Not Parse("{""a"" b}").IsValid
     Debug.Assert Not Parse("{:""b""}").IsValid
     Debug.Assert Not Parse("{""a"" ""b""}").IsValid
@@ -380,11 +380,11 @@ Private Sub TestParseMiscValid()
     Debug.Assert AreEqual(Parse("{""arr"":[1,2,3],""obj"":{""k1"":1,""K1"":2}}").Value _
                         , Dictionary("arr", Collection(1, 2, 3), "obj", Dictionary("k1", 1, "K1", 2)))
     Debug.Assert AreEqual(Parse(BytesToString(&H0, &H5B, &H0, &H22, &H0, &HE9, &H0, &H22, &H0, &H5D)).Value _
-                        , Collection("é")) 'UTF16BE
+                        , Collection(Chr$(&HE9))) 'UTF16BE
     Debug.Assert AreEqual(Parse(BytesToString(&HFF, &HFE, &H5B, &H0, &H22, &H0, &HE9, &H0, &H22, &H0, &H5D, &H0)).Value _
-                        , Collection("é")) 'UTF16LE with UTF16LE BOM
+                        , Collection(Chr$(&HE9))) 'UTF16LE with UTF16LE BOM
     Debug.Assert AreEqual(Parse(BytesToString(&HEF, &HBB, &HBF, &H5B, &H0, &H22, &H0, &HE9, &H0, &H22, &H0, &H5D, &H0)).Value _
-                        , Collection("é")) 'UTF16LE with UTF8 BOM
+                        , Collection(Chr$(&HE9))) 'UTF16LE with UTF8 BOM
     Debug.Assert AreEqual(Parse("[0,]", ignoreTrailingComma:=True).Value, Collection(0))
     Debug.Assert AreEqual(Parse("["""",]", ignoreTrailingComma:=True).Value, Collection(vbNullString))
     Debug.Assert AreEqual(Parse("{""key"":""value"",}", ignoreTrailingComma:=True).Value, Dictionary("key", "value"))
@@ -394,13 +394,13 @@ Private Sub TestParseMiscInvalid()
     Debug.Assert Not Parse("").IsValid
     Debug.Assert Not Parse("<.>").IsValid
     Debug.Assert Not Parse("[<null>]").IsValid
-    Debug.Assert Not Parse(BytesToString(&H61, &HC3, &HA5)).IsValid 'aå
+    Debug.Assert Not Parse(BytesToString(&H61, &HC3, &HA5)).IsValid
     Debug.Assert Not Parse("[True]").IsValid
     Debug.Assert Not Parse("{""x"": true,").IsValid
     Debug.Assert Not Parse(BytesToString(&HEF, &HBB, &H7B, &H7D)).IsValid 'Incomplete BOM
     Debug.Assert Not Parse(BytesToString(&HEF, &HBB, &HBF, &H7B, &H7D), failIfBOMDetected:=True).IsValid 'Complete BOM
     Debug.Assert Not Parse(BytesToString(&HEF, &HBB, &HBF)).IsValid 'Complete BOM with no data
-    Debug.Assert Not Parse("å").IsValid
+    Debug.Assert Not Parse(Chr$(&HE5)).IsValid
     Debug.Assert Not Parse("[").IsValid
     Debug.Assert Not Parse("{").IsValid
     Debug.Assert Not Parse("[}").IsValid
@@ -415,7 +415,7 @@ Private Sub TestParseMiscInvalid()
     Debug.Assert Not Parse("{""a").IsValid
     Debug.Assert Not Parse("{'a'").IsValid
     Debug.Assert Not Parse("[""\{[""\{[""\{[""\{").IsValid
-    Debug.Assert Not Parse("é").IsValid
+    Debug.Assert Not Parse(ChrW$(&H17D)).IsValid
     Debug.Assert Not Parse("*").IsValid
     Debug.Assert Not Parse("{""a"":""b""}#{}").IsValid
     Debug.Assert Not Parse(BytesToString(&H5B, &HE2, &H81, &HA0, &H5D)).IsValid
@@ -574,7 +574,7 @@ Private Sub TestParseNumberInvalid()
     Debug.Assert Not Parse("1.23456789a-999").IsValid
     Debug.Assert Not Parse("1.23456789x-999").IsValid
     Debug.Assert Not Parse("1.23456789h-999").IsValid
-    Debug.Assert Not Parse(BytesToString(&H31, &H65, &HE5)).IsValid '1eå
+    Debug.Assert Not Parse(BytesToString(&H31, &H65, &HE5)).IsValid
 End Sub
 
 Private Sub TestParseStringValid()
@@ -644,7 +644,7 @@ Private Sub TestParseStringInvalid()
     Debug.Assert Not Parse("""\uD800\u""").IsValid
     Debug.Assert Not Parse("""\uD800\u1""").IsValid
     Debug.Assert Not Parse("""\uD800\u1x""").IsValid
-    Debug.Assert Not Parse("é").IsValid
+    Debug.Assert Not Parse(ChrW$(&H17D)).IsValid
     Debug.Assert Not Parse("""a" & vbNullChar & "a""").IsValid
     Debug.Assert Not Parse("""\" & vbNullChar & """").IsValid
     Debug.Assert Not Parse("""\" & vbTab & """").IsValid
@@ -663,15 +663,15 @@ Private Sub TestParseStringInvalid()
     Debug.Assert Not Parse("""\uD800\uD800\x""").IsValid
     Debug.Assert Not Parse("""\z""").IsValid
     Debug.Assert Not Parse("""\ugggg""").IsValid
-    Debug.Assert Not Parse("""\å""").IsValid
-    Debug.Assert Not Parse("""\uå""").IsValid
+    Debug.Assert Not Parse("""\" & Chr$(&HE5) & """").IsValid
+    Debug.Assert Not Parse("""\u" & Chr$(&HE5) & """").IsValid
     Debug.Assert Not Parse("\u0020""asd""").IsValid
     Debug.Assert Not Parse("\n").IsValid 'No quotes
     Debug.Assert Not Parse("'""'").IsValid
     Debug.Assert Not Parse("abc").IsValid
     Debug.Assert Not Parse("""\").IsValid
     Debug.Assert Not Parse("""\UA66D""").IsValid
-    Debug.Assert Not Parse(BytesToString(commaA, &H5C, &HE5, commaA)).IsValid '"\å"
+    Debug.Assert Not Parse(BytesToString(commaA, &H5C, &HE5, commaA)).IsValid
 End Sub
 
 'https://datatracker.ietf.org/doc/html/rfc8259#section-7

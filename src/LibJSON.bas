@@ -140,6 +140,10 @@ Private Type IntegerAccessor
     arr() As Integer
     sa As SAFEARRAY_1D
 End Type
+Private Type LongAccessor
+    arr() As Long
+    sa As SAFEARRAY_1D
+End Type
 Private Type PointerAccessor
     arr() As LongPtr
     sa As SAFEARRAY_1D
@@ -189,6 +193,7 @@ Private Enum CharType
     numDigit = 2
     numSign = 3
     numExp = 4
+    numDot = 5
 End Enum
 
 Private Type CharMap
@@ -700,13 +705,15 @@ Private Function ParseChars(ByRef inChars() As Integer _
                           , Optional ByVal vMissing As Variant) As Boolean
     Static cm As CharMap
     Static buff As IntegerAccessor
+    Static longs As LongAccessor
     Dim i As Long
     Dim j As Long
     Dim afterCommaArr As AllowedToken
     Dim afterCommaDict As AllowedToken
     '
     If buff.sa.cDims = 0 Then
-        InitAccessor VarPtr(buff), buff.sa, 2
+        InitAccessor VarPtr(buff), buff.sa, intSize
+        InitAccessor VarPtr(longs), longs.sa, longSize
         InitCharMap cm
     End If
     '
@@ -1042,10 +1049,10 @@ Private Sub InitCharMap(ByRef cm As CharMap)
     cm.toType(ccSpace) = whitespace 'Space
     For i = ccZero To ccNine
         cm.toType(i) = numDigit
-        cm.nibs(i + ccZero) = i
     Next i
     cm.toType(ccPlus) = numSign
     cm.toType(ccMinus) = numSign
+    cm.toType(ccDot) = numDot
     cm.toType(69) = numExp  'e
     cm.toType(101) = numExp 'E
     '
@@ -1053,6 +1060,9 @@ Private Sub InitCharMap(ByRef cm As CharMap)
     'Avoids the use of ChrW by precomputing all hex digits and their position
     For i = ccColon To ccBacktick
         cm.nibs(i) = &H8000 'Force 'Subscript out of range' when used with nib#
+    Next i
+    For i = 0 To 9
+        cm.nibs(i + ccZero) = i
     Next i
     For i = 10 To 15
         cm.nibs(i + 55) = i 'A to F
