@@ -100,6 +100,7 @@ Private Enum DataTypeSize
 #Else
     ptrSize = 4
 #End If
+    currSize = 8
 End Enum
 
 #If x64 Then
@@ -140,12 +141,12 @@ Private Type IntegerAccessor
     arr() As Integer
     sa As SAFEARRAY_1D
 End Type
-Private Type LongAccessor
-    arr() As Long
-    sa As SAFEARRAY_1D
-End Type
 Private Type PointerAccessor
     arr() As LongPtr
+    sa As SAFEARRAY_1D
+End Type
+Private Type CurrencyAccessor
+    arr() As Currency
     sa As SAFEARRAY_1D
 End Type
 
@@ -203,6 +204,7 @@ Private Type CharMap
     nib2(0 To 15) As Integer
     nib3(0 To 15) As Integer
     nib4(0 To 15) As Integer
+    literal(0 To 2) As Currency
 End Type
 
 Private Enum AllowedToken
@@ -705,7 +707,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
                           , Optional ByVal vMissing As Variant) As Boolean
     Static cm As CharMap
     Static buff As IntegerAccessor
-    Static longs As LongAccessor
+    Static curr As CurrencyAccessor
     Dim i As Long
     Dim j As Long
     Dim afterCommaArr As AllowedToken
@@ -713,7 +715,9 @@ Private Function ParseChars(ByRef inChars() As Integer _
     '
     If buff.sa.cDims = 0 Then
         InitAccessor VarPtr(buff), buff.sa, intSize
-        InitAccessor VarPtr(longs), longs.sa, longSize
+        InitAccessor VarPtr(curr), curr.sa, currSize
+        curr.sa.pvData = VarPtr(curr)
+        curr.sa.rgsabound0.cElements = 1
         InitCharMap cm
     End If
     '
@@ -946,26 +950,23 @@ Private Function ParseChars(ByRef inChars() As Integer _
             #End If
             wasValue = True
             i = i - 1
-        ElseIf ch = ccLowF Then
-            If inChars(i + 1) <> 97 Or inChars(i + 2) <> 108 _
-            Or inChars(i + 3) <> 115 Or inChars(i + 4) <> 101 Then Err.Raise 9
-            v = False
-            i = i + 4
+        Else 'Check for literal: false, null, true
+            If ch = ccLowF Then
+                i = i + 4
+                v = False
+            ElseIf ch = ccLowN Then
+                i = i + 3
+                v = Null
+            ElseIf ch = ccLowT Then
+                i = i + 3
+                v = True
+            Else
+                GoTo Unexpected
+            End If
+            If i > UB Then Err.Raise 9
+            curr.sa.pvData = VarPtr(inChars(i - 3))
+            If cm.literal((ch And &H18) \ &H8) <> curr.arr(0) Then Err.Raise 9
             wasValue = True
-        ElseIf ch = ccLowN Then
-            If inChars(i + 1) <> 117 Or inChars(i + 2) <> 108 _
-                                     Or inChars(i + 3) <> 108 Then Err.Raise 9
-            v = Null
-            i = i + 3
-            wasValue = True
-        ElseIf ch = ccLowT Then
-            If inChars(i + 1) <> 114 Or inChars(i + 2) <> 117 _
-                                     Or inChars(i + 3) <> 101 Then Err.Raise 9
-            v = True
-            i = i + 3
-            wasValue = True
-        Else
-            GoTo Unexpected
         End If
         If wasValue Then
             If cInfo.isDict Then
@@ -987,6 +988,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
     '
     buff.sa.rgsabound0.cElements = 0
     buff.sa.pvData = NullPtr
+    curr.sa.pvData = VarPtr(curr)
 Exit Function
 Unexpected:
     If i <= UB Then
@@ -1077,4 +1079,9 @@ Private Sub InitCharMap(ByRef cm As CharMap)
         cm.nib3(i) = i * &H10
         cm.nib4(i) = i 'Only needed to raise error if not 0 to 15 / F
     Next i
+    '
+    'Map false, null, true to 8-byte values
+    cm.literal(0) = 2842946657609.3281@ 'alse
+    cm.literal(1) = 3039976134888.6638@ 'null
+    cm.literal(2) = 2842947516642.1108@ 'true
 End Sub
