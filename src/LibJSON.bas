@@ -152,17 +152,48 @@ Private Type LongTemplate
     l As Long
 End Type
 
+Private Enum CharCode
+    ccNull = 0          '0x00 'nullChar'
+    ccBack = 8          '0x08 \b
+    ccTab = 9           '0x09 \t
+    ccLf = 10           '0x0A \n
+    ccFormFeed = 12     '0x0C \f
+    ccCr = 13           '0x0D \r
+    ccSpace = 32        '0x20 'space'
+    ccBang = 33         '0x21 !
+    ccDoubleQuote = 34  '0x22 "
+    ccPlus = 43         '0x2B +
+    ccComma = 44        '0x2C ,
+    ccMinus = 45        '0x2D -
+    ccDot = 46          '0x2E .
+    ccSlash = 47        '0x2F /
+    ccZero = 48         '0x30 0
+    ccNine = 57         '0x39 9
+    ccColon = 58        '0x3A :
+    ccArrayStart = 91   '0x5B [
+    ccBackslash = 92    '0x5C \
+    ccArrayEnd = 93     '0x5D ]
+    ccBacktick = 96     '0x60 `
+    ccLowB = 98         '0x62 b
+    ccLowF = 102        '0x66 f
+    ccLowN = 110        '0x6E n
+    ccLowR = 114        '0x72 r
+    ccLowT = 116        '0x74 t
+    ccLowU = 117        '0x75 u
+    ccObjectStart = 123 '0x7B {
+    ccObjectEnd = 125   '0x7D }
+End Enum
+
 Private Enum CharType
     whitespace = 1
     numDigit = 2
     numSign = 3
     numExp = 4
-    numDot = 5
 End Enum
 
 Private Type CharMap
-    toType(9 To 125) As CharType
-    nibs(48 To 102) As Integer 'Nibble: 0 to F. Byte: 00 to FF
+    toType(ccTab To ccObjectEnd) As CharType
+    nibs(ccZero To ccLowF) As Integer 'Nibble: 0 to F. Byte: 00 to FF
     nib1(0 To 15) As Integer
     nib2(0 To 15) As Integer
     nib3(0 To 15) As Integer
@@ -706,10 +737,10 @@ Private Function ParseChars(ByRef inChars() As Integer _
     Do While i <= UB
         ch = inChars(i)
         wasValue = False
-        If ch < 9 Or ch > 125 Then
+        If ch < ccTab Or ch > ccObjectEnd Then
             GoTo Unexpected
         ElseIf cm.toType(ch) = whitespace Then 'Skip
-        ElseIf ch = 91 Or ch = 123 Then '[ or {
+        ElseIf ch = ccArrayStart Or ch = ccObjectStart Then
             If (cInfo.tAllow And allowValue) = 0 Then GoTo Unexpected
             depth = depth + 1
             If depth > inOptions.maxDepth Then Err.Raise 5, , "Max Depth Hit"
@@ -717,7 +748,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
             parents(depth) = cInfo
             '
             cInfo = parents(0) 'Clears members
-            cInfo.isDict = (ch = 123)
+            cInfo.isDict = (ch = ccObjectStart)
             If cInfo.isDict Then
                 Set cInfo.dict = New Dictionary
                 If inOptions.allowDuplicatedKeys Then
@@ -729,21 +760,21 @@ Private Function ParseChars(ByRef inChars() As Integer _
                 Set cInfo.coll = New Collection
                 cInfo.tAllow = allowValue Or allowRBracket
             End If
-        ElseIf ch = 93 Then ']
+        ElseIf ch = ccArrayEnd Then
             If (cInfo.tAllow And allowRBracket) = 0 Then GoTo Unexpected
             If Not IsEmpty(v) Then cInfo.coll.Add v
             Set v = cInfo.coll
             cInfo = parents(depth)
             depth = depth - 1
             wasValue = True
-        ElseIf ch = 125 Then '}
+        ElseIf ch = ccObjectEnd Then
             If (cInfo.tAllow And allowRBrace) = 0 Then GoTo Unexpected
             If Not IsEmpty(v) Then cInfo.dict.Add cInfo.pendingKey, v
             Set v = cInfo.dict
             cInfo = parents(depth)
             depth = depth - 1
             wasValue = True
-        ElseIf ch = 44 Then ',
+        ElseIf ch = ccComma Then
             If (cInfo.tAllow And allowComma) = 0 Then GoTo Unexpected
             If cInfo.isDict Then
                 cInfo.dict.Add cInfo.pendingKey, v
@@ -753,10 +784,10 @@ Private Function ParseChars(ByRef inChars() As Integer _
                 cInfo.tAllow = afterCommaArr
             End If
             v = Empty
-        ElseIf ch = 58 Then ':
+        ElseIf ch = ccColon Then
             If (cInfo.tAllow And allowColon) = 0 Then GoTo Unexpected
             cInfo.tAllow = allowValue
-        ElseIf ch = 34 Then '"
+        ElseIf ch = ccDoubleQuote Then
             If cInfo.tAllow < allowString Then GoTo Unexpected
             Dim wasHighSurrogate As Boolean: wasHighSurrogate = False
             Dim isLowSurrogate As Boolean
@@ -765,28 +796,27 @@ Private Function ParseChars(ByRef inChars() As Integer _
             j = 0
             For i = i + 1 To UB
                 ch = inChars(i)
-                If ch = 34 Then '"
+                If ch = ccDoubleQuote Then
                     endFound = True
                     Exit For
-                ElseIf ch = 92 Then '\
+                ElseIf ch = ccBackslash Then
                     i = i + 1
                     Select Case inChars(i)
-                    Case 34, 47, 92: ch = inChars(i) '" / \
-                    Case 98:         ch = 8          'b >> vbBack
-                    Case 102:        ch = 12         'f >> vbFormFeed
-                    Case 110:        ch = 10         'n >> vbLf
-                    Case 114:        ch = 13         'r >> vbCr
-                    Case 116:        ch = 9          't >> vbTab
-                    Case 117 'u followed by 4 hex digits (nibbles)
-                        ch = cm.nib1(cm.nibs(inChars(i + 1))) _
-                           + cm.nib2(cm.nibs(inChars(i + 2))) _
-                           + cm.nib3(cm.nibs(inChars(i + 3))) _
-                           + cm.nib4(cm.nibs(inChars(i + 4)))
-                        i = i + 4
-                    Case Else
-                        Err.Raise 5, , "Invalid escape"
+                        Case ccDoubleQuote, ccSlash, ccBackslash: ch = inChars(i)
+                        Case ccLowB: ch = ccBack
+                        Case ccLowF: ch = ccFormFeed
+                        Case ccLowN: ch = ccLf
+                        Case ccLowR: ch = ccCr
+                        Case ccLowT: ch = ccTab
+                        Case ccLowU 'u followed by 4 hex digits (nibbles)
+                            ch = cm.nib1(cm.nibs(inChars(i + 1))) _
+                               + cm.nib2(cm.nibs(inChars(i + 2))) _
+                               + cm.nib3(cm.nibs(inChars(i + 3))) _
+                               + cm.nib4(cm.nibs(inChars(i + 4)))
+                            i = i + 4
+                        Case Else: Err.Raise 5, , "Invalid escape"
                     End Select
-                ElseIf ch >= &H0 And ch <= &H1F Then
+                ElseIf ch >= ccNull And ch < ccSpace Then
                     Err.Raise 5, , "U+0000 through U+001F must be escaped"
                 End If
                 '
@@ -829,7 +859,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
             End If
         ElseIf (cInfo.tAllow And allowValue) = 0 Then
             GoTo Unexpected
-        ElseIf cm.toType(ch) = numDigit Or ch = 45 Then '# or -
+        ElseIf cm.toType(ch) = numDigit Or ch = ccMinus Then
             Dim hasLeadZero As Boolean: hasLeadZero = False
             Dim hasDot As Boolean:      hasDot = False
             Dim hasExp As Boolean:      hasExp = False
@@ -839,7 +869,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
             '
             j = 0
             buff.arr(j) = ch
-            hasLeadZero = (ch = 48)
+            hasLeadZero = (ch = ccZero)
             ct = cm.toType(ch)
             digitsCount = -CLng(ct = numDigit)
             For i = i + 1 To UB
@@ -851,9 +881,9 @@ Private Function ParseChars(ByRef inChars() As Integer _
                         i = i - 1
                         Err.Raise 5, , "Leading zeroes are now allowed"
                     End If
-                    hasLeadZero = (digitsCount = 0) And (ch = 48)
+                    hasLeadZero = (digitsCount = 0) And (ch = ccZero)
                     digitsCount = digitsCount + 1
-                ElseIf ct = numDot Then
+                ElseIf ch = ccDot Then
                     If prevCT <> numDigit Then Err.Raise 5, , "Expected digit not ."
                     If hasDot Or hasExp Then Err.Raise 5, , "Unexpected ."
                     hasDot = True
@@ -882,10 +912,11 @@ Private Function ParseChars(ByRef inChars() As Integer _
             Next i
             If ct > numDigit Then Err.Raise 5, , "Expected digit"
             '
-            If buff.arr(j) = 48 And hasDot And Not hasExp Then 'Remove trailing zeroes
+            If buff.arr(j) = ccZero And hasDot And Not hasExp Then
+                'Remove trailing zeroes
                 digitsCount = digitsCount - j
                 Do While j > 0
-                    If buff.arr(j - 1) <> 48 Then Exit Do
+                    If buff.arr(j - 1) <> ccZero Then Exit Do
                     j = j - 1
                 Loop
                 If cm.toType(buff.arr(j - 1)) = numDigit Then j = j - 1
@@ -908,19 +939,19 @@ Private Function ParseChars(ByRef inChars() As Integer _
             #End If
             wasValue = True
             i = i - 1
-        ElseIf ch = 102 Then 'f
+        ElseIf ch = ccLowF Then
             If inChars(i + 1) <> 97 Or inChars(i + 2) <> 108 _
             Or inChars(i + 3) <> 115 Or inChars(i + 4) <> 101 Then Err.Raise 9
             v = False
             i = i + 4
             wasValue = True
-        ElseIf ch = 110 Then 'n
+        ElseIf ch = ccLowN Then
             If inChars(i + 1) <> 117 Or inChars(i + 2) <> 108 _
                                      Or inChars(i + 3) <> 108 Then Err.Raise 9
             v = Null
             i = i + 3
             wasValue = True
-        ElseIf ch = 116 Then 't
+        ElseIf ch = ccLowT Then
             If inChars(i + 1) <> 114 Or inChars(i + 2) <> 117 _
                                      Or inChars(i + 3) <> 101 Then Err.Raise 9
             v = True
@@ -952,8 +983,11 @@ Private Function ParseChars(ByRef inChars() As Integer _
 Exit Function
 Unexpected:
     If i <= UB Then
-        If ch < 33 Or ch > 125 Then v = "\u" & Right$("000" & Hex$(ch), 4) _
-                               Else: v = ChrW$(ch)
+        If ch < ccBang Or ch > ccObjectEnd Then
+            v = "\u" & Right$("000" & Hex$(ch), 4)
+        Else
+            v = ChrW$(ch)
+        End If
         If cInfo.tAllow = allowNone Then Err.Raise 5, , "Extra " & v
         If cInfo.tAllow And allowValue Then Err.Raise 5, , "Unexpected " & v
     End If
@@ -963,11 +997,11 @@ ErrorHandler:
     buff.sa.pvData = NullPtr
     If Err.Number = 9 Then
         Select Case ch
-            Case 92: If i > UB Then outError = "Incomplete escape" _
-                               Else outError = "Invalid hex"
-            Case 102:  outError = "Expected 'false'"
-            Case 110:  outError = "Expected null'"
-            Case 116:  outError = "Expected 'true'"
+            Case ccBackslash: If i > UB Then outError = "Incomplete escape" _
+                                        Else outError = "Invalid hex"
+            Case ccLowF:  outError = "Expected 'false'"
+            Case ccLowN:  outError = "Expected null'"
+            Case ccLowT:  outError = "Expected 'true'"
             Case Else: outError = "Invalid literal"
         End Select
     ElseIf Err.Number = 457 Then
@@ -1002,26 +1036,23 @@ Private Sub InitCharMap(ByRef cm As CharMap)
     '
     'Map ascii character codes to specific json tokens
     'Avoids the use of Select Case
-    cm.toType(9) = whitespace  'Tab
-    cm.toType(10) = whitespace 'Lf
-    cm.toType(13) = whitespace 'Cr
-    cm.toType(32) = whitespace 'Space
-    For i = 48 To 57
-        cm.toType(i) = numDigit '0 to 9
+    cm.toType(ccTab) = whitespace
+    cm.toType(ccLf) = whitespace
+    cm.toType(ccCr) = whitespace
+    cm.toType(ccSpace) = whitespace 'Space
+    For i = ccZero To ccNine
+        cm.toType(i) = numDigit
+        cm.nibs(i + ccZero) = i
     Next i
-    cm.toType(43) = numSign '+
-    cm.toType(45) = numSign '-
-    cm.toType(46) = numDot  '.
+    cm.toType(ccPlus) = numSign
+    cm.toType(ccMinus) = numSign
     cm.toType(69) = numExp  'e
     cm.toType(101) = numExp 'E
     '
     'Map nibbles in escaped 4-hex Unicode chracters e.g. \u2713 (check mark)
     'Avoids the use of ChrW by precomputing all hex digits and their position
-    For i = 58 To 96
+    For i = ccColon To ccBacktick
         cm.nibs(i) = &H8000 'Force 'Subscript out of range' when used with nib#
-    Next i
-    For i = 0 To 9
-        cm.nibs(i + 48) = i '0 to 9
     Next i
     For i = 10 To 15
         cm.nibs(i + 55) = i 'A to F
