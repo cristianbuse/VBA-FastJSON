@@ -227,6 +227,7 @@ End Type
 ' - Supports UTF8, UTF16 (LE and BE) and UTF32 (LE and BE on Mac only)
 ' - Returs UTF16LE texts only
 ' - Accepts Default Class Members so no need to check for IsObject
+' - Numbers are rounded to the nearest Double and if possible Decimal is used
 'Parameters:
 ' * jsonText: String or Byte / Integer 1D array
 ' * jpCode: json page code:
@@ -463,28 +464,31 @@ Private Function Decode(ByVal jsonPtr As LongPtr _
         Dim cd As LongPtr
         Dim defaultChar As String: defaultChar = ChrW$(&HFFFD)
         Dim defPtr As LongPtr:     defPtr = StrPtr(defaultChar)
+        Dim nonRev As LongPtr
+        Dim inPrevLeft As LongPtr
+        Dim outPrevLeft As LongPtr
         '
         On Error Resume Next
         cd = collDescriptors(CStr(jpCode))
         On Error GoTo 0
         '
         If cd = NullPtr Then
-            Dim descName As String
-            Select Case jpCode
-                Case jpCodeUTF8:    descName = "UTF-8"
-                Case jpCodeUTF16BE: descName = "UTF-16BE"
-                Case jpCodeUTF32LE: descName = "UTF-32LE"
-                Case jpCodeUTF32BE: descName = "UTF-32BE"
-                Case Else:          descName = "N/A"
-            End Select
-            cd = iconv_open(StrPtr("UTF-16LE"), StrPtr(descName))
+            Static descTo As String
+            Dim descFrom As String: descFrom = PageCodeDesc(jpCode)
+            If LenB(descTo) = 0 Then descTo = PageCodeDesc(jpCodeUTF16LE)
+            cd = iconv_open(StrPtr(descTo), StrPtr(descFrom))
             If cd = -1 Then
                 outErrDesc = "Unsupported page code conversion"
                 Exit Function
             End If
             collDescriptors.Add cd, CStr(jpCode)
         End If
-        Do While iconv(cd, jsonPtr, inBytesLeft, outBuffPtr, outBytesLeft) = -1
+        Do
+            CopyMemory ByVal errno_location, 0&, longSize
+            inPrevLeft = inBytesLeft
+            outPrevLeft = outBytesLeft
+            nonRev = iconv(cd, jsonPtr, inBytesLeft, outBuffPtr, outBytesLeft)
+            If nonRev >= 0 Then Exit Do
             Const EILSEQ As Long = 92
             Const EINVAL As Long = 22
             Dim errNo As Long: CopyMemory errNo, ByVal errno_location, longSize
@@ -495,18 +499,20 @@ Private Function Decode(ByVal jsonPtr As LongPtr _
                     Case EILSEQ: outErrDesc = "Invalid byte sequence: "
                     Case EINVAL: outErrDesc = "Incomplete byte sequence: "
                     Case Else:   outErrDesc = "Failed conversion: "
-                End If
-                outErrDesc = outErrDesc & descName
+                End Select
+                outErrDesc = outErrDesc & " from CP" & jpCode
                 Exit Function
             End If
-            CopyMemory ByVal outBufptr, ByVal defPtr, intSize
+            CopyMemory ByVal outBuffPtr, ByVal defPtr, intSize
             outBytesLeft = outBytesLeft - intSize
-            If errNo = EINVAL Then Exit Do
-            '
             outBuffPtr = outBuffPtr + intSize
             jsonPtr = jsonPtr + byteSize
             inBytesLeft = inBytesLeft - byteSize
         Loop
+        If nonRev > 0 Then
+            'Maybe there is a way to mimic Windows behaviour - repeat 0xFFFD
+            '...
+        End If
         outBuffSize = (outBuffSize - CLng(outBytesLeft)) \ 2
         outBuffPtr = StrPtr(outBuff)
         Decode = True
@@ -546,6 +552,19 @@ Private Function Decode(ByVal jsonPtr As LongPtr _
         If Not Decode Then outErrDesc = "Unicode conversion failed"
     #End If
 End Function
+#If Mac Then
+Private Function PageCodeDesc(ByVal jpCode As JsonPageCode) As String
+    Dim result As String
+    Select Case jpCode
+        Case jpCodeUTF8:    PageCodeDesc = "UTF-8"
+        Case jpCodeUTF16LE: PageCodeDesc = "UTF-16LE"
+        Case jpCodeUTF16BE: PageCodeDesc = "UTF-16BE"
+        Case jpCodeUTF32LE: PageCodeDesc = "UTF-32LE"
+        Case jpCodeUTF32BE: PageCodeDesc = "UTF-32BE"
+    End Select
+    PageCodeDesc = StrConv(PageCodeDesc, vbFromUnicode)
+End Function
+#End If
 
 Private Sub ReverseBytes(ByVal jsonPtr As LongPtr _
                        , ByVal sizeB As Long _
