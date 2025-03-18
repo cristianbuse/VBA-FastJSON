@@ -197,7 +197,7 @@ Private Enum CharType
     numDot = 5
 End Enum
 
-Private Type CharMap
+Private Type CharacterMap
     toType(ccTab To ccObjectEnd) As CharType
     nibs(ccZero To ccLowF) As Integer 'Nibble: 0 to F. Byte: 00 to FF
     nib1(0 To 15) As Integer
@@ -547,10 +547,6 @@ Private Function Decode(ByVal jsonPtr As LongPtr _
             jsonPtr = jsonPtr + byteSize
             inBytesLeft = inBytesLeft - byteSize
         Loop
-        If nonRev > 0 Then
-            'Maybe there is a way to mimic Windows behaviour - repeat 0xFFFD
-            '...
-        End If
         outBuffSize = (outBuffSize - CLng(outBytesLeft)) \ 2
         outBuffPtr = StrPtr(outBuff)
         Decode = True
@@ -705,7 +701,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
                           , ByRef v As Variant _
                           , ByRef outError As String _
                           , Optional ByVal vMissing As Variant) As Boolean
-    Static cm As CharMap
+    Static cm As CharacterMap
     Static buff As IntegerAccessor
     Static curr As CurrencyAccessor
     Dim i As Long
@@ -738,14 +734,14 @@ Private Function ParseChars(ByRef inChars() As Integer _
     Dim parents() As ContextInfo: ReDim parents(0 To 0)
     Dim buffSize As Long: buffSize = 16
     Dim sBuff As String:  sBuff = Space$(buffSize)
-    Dim UB As Long:       UB = UBound(inChars)
+    Dim ub As Long:       ub = UBound(inChars)
     '
     i = 0
     cInfo.tAllow = allowValue
     buff.sa.pvData = StrPtr(sBuff)
     buff.sa.rgsabound0.cElements = buffSize
     '
-    Do While i <= UB
+    Do While i <= ub
         ch = inChars(i)
         wasValue = False
         If ch < ccTab Or ch > ccObjectEnd Then
@@ -805,7 +801,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
             Dim endFound As Boolean: endFound = False
             '
             j = 0
-            For i = i + 1 To UB
+            For i = i + 1 To ub
                 ch = inChars(i)
                 If ch = ccDoubleQuote Then
                     endFound = True
@@ -883,7 +879,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
             hasLeadZero = (ch = ccZero)
             ct = cm.toType(ch)
             digitsCount = -CLng(ct = numDigit)
-            For i = i + 1 To UB
+            For i = i + 1 To ub
                 prevCT = ct
                 ch = inChars(i)
                 ct = cm.toType(ch)
@@ -963,7 +959,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
             Else
                 GoTo Unexpected
             End If
-            If i > UB Then Err.Raise 9
+            If i > ub Then Err.Raise 9
             curr.sa.pvData = VarPtr(inChars(i - 3))
             If cm.literal((ch And &H18) \ &H8) <> curr.arr(0) Then Err.Raise 9
             wasValue = True
@@ -991,7 +987,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
     curr.sa.pvData = VarPtr(curr)
 Exit Function
 Unexpected:
-    If i <= UB Then
+    If i <= ub Then
         If ch < ccBang Or ch > ccObjectEnd Then
             v = "\u" & Right$("000" & Hex$(ch), 4)
         Else
@@ -1006,7 +1002,7 @@ ErrorHandler:
     buff.sa.pvData = NullPtr
     If Err.Number = 9 Then
         Select Case ch
-            Case ccBackslash: If i > UB Then outError = "Incomplete escape" _
+            Case ccBackslash: If i > ub Then outError = "Incomplete escape" _
                                         Else outError = "Invalid hex"
             Case ccLowF:  outError = "Expected 'false'"
             Case ccLowN:  outError = "Expected null'"
@@ -1019,7 +1015,7 @@ ErrorHandler:
     Else
         outError = Err.Description
     End If
-    If i > UB Then
+    If i > ub Then
         outError = outError & " at end of JSON input"
     Else
         outError = outError & " at char position " & i + 1
@@ -1040,7 +1036,7 @@ Private Function AllowedChars(ByVal ta As AllowedToken) As String
     AllowedChars = Replace(AllowedChars, "%", "Value")
 End Function
 
-Private Sub InitCharMap(ByRef cm As CharMap)
+Private Sub InitCharMap(ByRef cm As CharacterMap)
     Dim i As Long
     '
     'Map ascii character codes to specific json tokens
