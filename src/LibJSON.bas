@@ -287,6 +287,7 @@ End Type
 '     - False (Default): e.g. 0xFFFE3100 same as 0x3100 => Number: 1
 '     - True:            fails if any BOM detected
 ' * failIfInvalidByteSequence:
+'     Only applicable if conversion is needed (e.g. UTF8 to UTF16LE)
 '     - False (Default): replaces each byte/unit with U+FFFD. See approach 3:
 '                        https://unicode.org/review/pr-121.html
 '                        e.g. 0x22FF22 (UTF8) => String: 0xFFFD
@@ -655,7 +656,8 @@ Private Sub InitSafeArray(ByRef sa As SAFEARRAY_1D, ByVal elemSize As Long)
     End With
 End Sub
 
-Private Property Let MemLongPtr(ByVal memAddress As LongPtr, ByVal newValue As LongPtr)
+Private Property Let MemLongPtr(ByVal memAddress As LongPtr _
+                              , ByVal newValue As LongPtr)
     #If Mac Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, ptrSize
     #ElseIf TWINBASIC Then
@@ -891,17 +893,16 @@ Private Function ParseChars(ByRef inChars() As Integer _
                     hasLeadZero = (digitsCount = 0) And (ch = ccZero)
                     digitsCount = digitsCount + 1
                 ElseIf ch = ccDot Then
-                    If prevCT <> numDigit Then Err.Raise 5, , "Expected digit not ."
-                    If hasDot Or hasExp Then Err.Raise 5, , "Unexpected ."
+                    If prevCT <> numDigit Or hasDot _
+                                          Or hasExp Then GoTo Unexpected
                     hasDot = True
                     hasLeadZero = False
                 ElseIf ct = numExp Then
-                    If prevCT <> numDigit Then Err.Raise 5, , "Expected digit not E"
-                    If hasExp Then Err.Raise 5, , "Unexpected E-notation"
+                    If prevCT <> numDigit Or hasExp Then GoTo Unexpected
                     hasExp = True
                     hasLeadZero = False
                 ElseIf ct = numSign Then
-                    If prevCT <> numExp Then Err.Raise 5, , "Unexpected " & Chr$(ch)
+                    If prevCT <> numExp Then GoTo Unexpected
                 Else
                     Exit For
                 End If
