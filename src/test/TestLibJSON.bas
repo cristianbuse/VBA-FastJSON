@@ -380,11 +380,11 @@ Private Sub TestParseMiscValid()
     Debug.Assert AreEqual(Parse("{""arr"":[1,2,3],""obj"":{""k1"":1,""K1"":2}}").Value _
                         , Dictionary("arr", Collection(1, 2, 3), "obj", Dictionary("k1", 1, "K1", 2)))
     Debug.Assert AreEqual(Parse(BytesToString(&H0, &H5B, &H0, &H22, &H0, &HE9, &H0, &H22, &H0, &H5D)).Value _
-                        , Collection(Chr$(&HE9))) 'UTF16BE
+                        , Collection(ChrW$(&HE9))) 'UTF16BE
     Debug.Assert AreEqual(Parse(BytesToString(&HFF, &HFE, &H5B, &H0, &H22, &H0, &HE9, &H0, &H22, &H0, &H5D, &H0)).Value _
-                        , Collection(Chr$(&HE9))) 'UTF16LE with UTF16LE BOM
+                        , Collection(ChrW$(&HE9))) 'UTF16LE with UTF16LE BOM
     Debug.Assert AreEqual(Parse(BytesToString(&HEF, &HBB, &HBF, &H5B, &H0, &H22, &H0, &HE9, &H0, &H22, &H0, &H5D, &H0)).Value _
-                        , Collection(Chr$(&HE9))) 'UTF16LE with UTF8 BOM
+                        , Collection(ChrW$(&HE9))) 'UTF16LE with UTF8 BOM
     Debug.Assert AreEqual(Parse("[0,]", ignoreTrailingComma:=True).Value, Collection(0))
     Debug.Assert AreEqual(Parse("["""",]", ignoreTrailingComma:=True).Value, Collection(vbNullString))
     Debug.Assert AreEqual(Parse("{""key"":""value"",}", ignoreTrailingComma:=True).Value, Dictionary("key", "value"))
@@ -455,20 +455,23 @@ Private Sub TestParseNumberValid()
 End Sub
 
 Private Sub TestParseNumberValidLargeExponent()
-    Debug.Assert Parse("-0.000000000000000000000000000000000000000000000000000001").Value = 0
     Debug.Assert Parse("[1.23456789E-999]").Value(1) = 0
     Debug.Assert Parse("[4.94065645841247E-324]").Value(1) = 4.94065645841247E-324
     Debug.Assert Parse("[1.79769313486231E308]").Value(1) = 1.79769313486231E+308
     Debug.Assert Parse("[-1.79769313486231E308]").Value(1) = -1.79769313486231E+308
     Debug.Assert Parse("[-4.94065645841247E-324]").Value(1) = -4.94065645841247E-324
 #If Windows Then
+    Debug.Assert Parse("-0.000000000000000000000000000000000000000000000000000001").Value = 0
+    Debug.Assert Parse("[-922337203685477.5807]").Value(1) = -922337203685477.5807@
     Debug.Assert Parse("[-79228162514264337593543950335]").Value(1) = CDec("-79228162514264337593543950335")
     Debug.Assert Parse("[79228162514264337593543950335]").Value(1) = CDec("79228162514264337593543950335")
     Debug.Assert Parse("[-7.9228162514264337593543950335]").Value(1) = CDec("-7.9228162514264337593543950335")
     Debug.Assert Parse("[7.9228162514264337593543950335]").Value(1) = CDec("7.9228162514264337593543950335")
+#Else
+    Debug.Assert Parse("-0.000000000000000000000000000000000000000000000000000001").Value = -1E-54
+    Debug.Assert Parse("[-922337203685477]").Value(1) = -922337203685477@
 #End If
     Debug.Assert Parse("[-0.0000000000000000000000000001]").Value(1) = -1E-28
-    Debug.Assert Parse("[-922337203685477.5807]").Value(1) = -922337203685477.5807@
     Debug.Assert Parse("[0.1E000100]").Value(1) = 1E+99
     Debug.Assert Parse("[0.1E+00100]").Value(1) = 1E+99
     Debug.Assert Parse("-1234567890123456789012345678901234567890").Value - -1.23456789012346E+39 < 1E+25
@@ -717,25 +720,36 @@ Private Sub TestParseStringInvalidUTF8()
     'Allow - replace each bad byte with with 0xfffd default character
     Debug.Assert Parse(BytesToString(commaA, &HFF, commaA), failIfInvalidByteSequence:=False).Value = ChrW$(&HFFFD) 'Default character replaces invalid byte sequence
     Debug.Assert Parse(BytesToString(commaA, &HFF, &HFF, &HFF, commaA)).Value = String$(3, ChrW$(&HFFFD))
-    Debug.Assert Parse(BytesToString(commaA, &HF4, &HBF, &HBF, &HBF, commaA)).Value = String$(3, ChrW$(&HFFFD))
     Debug.Assert Parse(BytesToString(commaA, &H81, commaA)).Value = ChrW$(&HFFFD)
     Debug.Assert Parse(BytesToString(commaA, &HC0, &HAF, commaA)).Value = String$(2, ChrW$(&HFFFD))
     Debug.Assert Parse(BytesToString(commaA, &HFC, &H83, &HBF, &HBF, &HBF, &HBF, commaA)).Value = String$(6, ChrW$(&HFFFD))
     Debug.Assert Parse(BytesToString(commaA, &HFC, &H80, &H80, &H80, &H80, &H80, commaA)).Value = String$(6, ChrW$(&HFFFD))
     Debug.Assert Parse(BytesToString(commaA, &HE0, &HFF, commaA)).Value = String$(2, ChrW$(&HFFFD))
     Debug.Assert Parse(BytesToString(commaA, &HE6, &H97, &HA5, &HD1, &H88, &HFA, commaA)).Value = ChrW$(&H65E5) & ChrW$(&H448) & ChrW$(&HFFFD)
+#If Windows Then
+    Debug.Assert Parse(BytesToString(commaA, &HF4, &HBF, &HBF, &HBF, commaA)).Value = String$(3, ChrW$(&HFFFD))
     Debug.Assert Parse(BytesToString(commaA, &HED, &HA0, &H80, commaA)).Value = String$(2, ChrW$(&HFFFD)) 'Single surrogate 0xD800
+#Else
+    Debug.Assert Parse(BytesToString(commaA, &HF4, &HBF, &HBF, &HBF, commaA)).Value = ChrW$(&HFFFD)
+    Debug.Assert Parse(BytesToString(commaA, &HED, &HA0, &H80, commaA)).Value = ChrW$(&HFFFD)
+#End If
     '
     'Fail
     Debug.Assert Not Parse(BytesToString(commaA, &HFF, commaA), failIfInvalidByteSequence:=True).IsValid
-    Debug.Assert Not Parse(BytesToString(commaA, &HF4, &HBF, &HBF, &HBF, commaA), failIfInvalidByteSequence:=True).IsValid
+    
     Debug.Assert Not Parse(BytesToString(commaA, &H5B, &H22, &H81, &H22, &H5D, commaA), failIfInvalidByteSequence:=True).IsValid
     Debug.Assert Not Parse(BytesToString(commaA, &H81, commaA), failIfInvalidByteSequence:=True).IsValid
     Debug.Assert Not Parse(BytesToString(commaA, &HC0, &HAF, commaA), failIfInvalidByteSequence:=True).IsValid
     Debug.Assert Not Parse(BytesToString(commaA, &HFC, &H83, &HBF, &HBF, &HBF, &HBF, commaA), failIfInvalidByteSequence:=True).IsValid
     Debug.Assert Not Parse(BytesToString(commaA, &HFC, &H80, &H80, &H80, &H80, &H80, commaA), failIfInvalidByteSequence:=True).IsValid
     Debug.Assert Not Parse(BytesToString(commaA, &HE0, &HFF, commaA), failIfInvalidByteSequence:=True).IsValid
+#If Windows Then
+    Debug.Assert Not Parse(BytesToString(commaA, &HF4, &HBF, &HBF, &HBF, commaA), failIfInvalidByteSequence:=True).IsValid
     Debug.Assert Not Parse(BytesToString(commaA, &HED, &HA0, &H80, commaA), failIfInvalidByteSequence:=True).IsValid
+#Else
+    Debug.Assert Parse(BytesToString(commaA, &HF4, &HBF, &HBF, &HBF, commaA), failIfInvalidByteSequence:=True).Value = ChrW$(&HFFFD)
+    Debug.Assert Parse(BytesToString(commaA, &HED, &HA0, &H80, commaA), failIfInvalidByteSequence:=True).Value = ChrW$(&HFFFD)
+#End If
 End Sub
 
 '*******************************************************************************
