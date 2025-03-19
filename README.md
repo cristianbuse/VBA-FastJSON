@@ -3,6 +3,8 @@ Fast Native JSON Parser / Serializer for VBA. Compatible with Windows and Mac.
 
 [RFC 8259](https://datatracker.ietf.org/doc/html/rfc8259) compliant.
 
+This parser is intended for VBA. However it is compatible with VBA7 / twinBASIC / VB6 / VBA6.
+
 ## Installation
 
 Download the [latest release](https://github.com/cristianbuse/VBA-FastJSON/releases/latest), extract and import the ```LibJSON.bas``` module into your project.

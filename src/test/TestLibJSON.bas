@@ -140,7 +140,11 @@ End Sub
 Private Sub TestParseArrayValidNesting()
     Debug.Assert AreEqual(Parse("[[],[[]]]").Value, Collection(New Collection, Collection(New Collection)))
     '
+#If TWINBASIC Then 'The built-in TB Collection leads to 'Out of stack space'
+    Const nestingLevel As Long = 100
+#Else
     Const nestingLevel As Long = 10000
+#End If
     Dim v As Collection
     Dim c As Collection
     Dim i As Long
@@ -296,11 +300,15 @@ Private Sub TestParseObjectValidNesting()
     Dim i As Long
     Dim h As Dictionary
     '
+#If TWINBASIC Then 'Fast Dictionary does not manage nesting in TB (only in VB*)
+    nestingLevel = 100
+#Else
     If IsFastDict() Then
         nestingLevel = 10000
     Else 'Scripting or other
         nestingLevel = 100
     End If
+#End If
     Set v = Parse(RepeatString("{""key"":", nestingLevel - 1) & "{" _
                     & String$(nestingLevel, "}"), maxNestingDepth:=nestingLevel).Value
     If IsFastDict() Then Set h = v 'Only Fast-Dictionary can handle deep nesting termination
