@@ -20,6 +20,10 @@ Option Private Module
 #Const Windows = (Mac = 0)
 Private Const commaA As Byte = &H22
 
+Public Sub RunAllJSONTests()
+    RunAllJSONParseTests
+End Sub
+
 'Test compliance with RFC 8259: https://www.rfc-editor.org/rfc/rfc8259
 'Addtional extensions are also tested. See optional parameters for LibJSON.Parse
 Public Sub RunAllJSONParseTests()
@@ -287,11 +291,16 @@ Private Sub TestParseObjectValid()
 End Sub
 
 Private Sub TestParseObjectValidNesting()
-    Const nestingLevel As Long = 10000
+    Dim nestingLevel As Long
     Dim v As Dictionary
     Dim i As Long
     Dim h As Dictionary
     '
+    If IsFastDict() Then
+        nestingLevel = 10000
+    Else 'Scripting or other
+        nestingLevel = 100
+    End If
     Set v = Parse(RepeatString("{""key"":", nestingLevel - 1) & "{" _
                     & String$(nestingLevel, "}"), maxNestingDepth:=nestingLevel).Value
     If IsFastDict() Then Set h = v 'Only Fast-Dictionary can handle deep nesting termination
@@ -598,13 +607,15 @@ Private Sub TestParseStringValid()
     Debug.Assert Parse(BytesToString(commaA, &H7F, commaA)).Value = Chr$(&H7F) 'DEL
     Debug.Assert Parse(BytesToString(commaA, &H61, &H7F, &H61, commaA)).Value = "a" & Chr$(&H7F) & "a"
     Debug.Assert Parse(BytesToString(commaA, &HE2, &H8D, &H82, &HE3, &H88, &HB4, &HE2, &H8D, &H82, commaA)).Value = ChrW$(&H2342) & ChrW$(&H3234) & ChrW$(&H2342)
-    With New Dictionary
-        .AllowDuplicateKeys = True
-        .CompareMode = vbTextCompare
-        .Add "key", 1
-        .Add "KEY", 2
-        Debug.Assert AreEqual(Parse("{""key"":1,""KEY"":2}", allowDuplicatedKeys:=True, keyCompareMode:=vbTextCompare).Value, .Self)
-    End With
+    If IsFastDict() Then
+        With New Dictionary
+            .AllowDuplicateKeys = True
+            .CompareMode = vbTextCompare
+            .Add "key", 1
+            .Add "KEY", 2
+            Debug.Assert AreEqual(Parse("{""key"":1,""KEY"":2}", allowDuplicatedKeys:=True, keyCompareMode:=vbTextCompare).Value, .Self)
+        End With
+    End If
 End Sub
 
 Private Sub TestParseStringValidEscape()

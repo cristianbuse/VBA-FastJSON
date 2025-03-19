@@ -311,6 +311,7 @@ Public Function Parse(ByRef jsonText As Variant _
     Static chars As IntegerAccessor
     Static bytes As ByteAccessor
     Static ptrs As PointerAccessor
+    Static isFDict As Boolean
     Dim jOptions As JSONOptions
     Dim bomCode As JsonPageCode
     Dim sizeB As Long
@@ -321,6 +322,7 @@ Public Function Parse(ByRef jsonText As Variant _
         InitAccessor VarPtr(bytes), bytes.sa, byteSize
         InitAccessor VarPtr(chars), chars.sa, intSize
         InitAccessor VarPtr(ptrs), ptrs.sa, ptrSize
+        isFDict = IsFastDict()
     End If
     If vt = vbString Then
         chars.sa.pvData = StrPtr(jsonText)
@@ -384,7 +386,7 @@ Public Function Parse(ByRef jsonText As Variant _
     End If
     '
     jOptions.ignoreTrailingComma = ignoreTrailingComma
-    jOptions.allowDuplicatedKeys = allowDuplicatedKeys
+    jOptions.allowDuplicatedKeys = allowDuplicatedKeys And isFDict
     jOptions.compMode = keyCompareMode
     jOptions.failIfLoneSurrogate = failIfLoneSurrogate
     jOptions.maxDepth = maxNestingDepth 'Negative numbers will allow 0 depth
@@ -1082,3 +1084,13 @@ Private Sub InitCharMap(ByRef cm As CharacterMap)
     cm.literal(1) = 3039976134888.6638@ 'null
     cm.literal(2) = 2842947516642.1108@ 'true
 End Sub
+
+Private Function IsFastDict() As Boolean
+    Dim o As Object:     Set o = New Dictionary
+    On Error Resume Next
+    Dim s As Single:     s = o.LoadFactor
+    Dim b As Boolean:    b = o.AllowDuplicateKeys
+    Dim d As Dictionary: Set d = o.Self.Factory
+    IsFastDict = (Err.Number = 0)
+    On Error GoTo 0
+End Function
