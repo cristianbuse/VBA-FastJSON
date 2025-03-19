@@ -3,7 +3,7 @@ Fast Native JSON Parser / Serializer for VBA. Compatible with Windows and Mac.
 
 [RFC 8259](https://datatracker.ietf.org/doc/html/rfc8259) compliant.
 
-This parser is intended for VBA. However it is compatible with VBA7 / twinBASIC / VB6 / VBA6.
+This parser is intended for VBA. However it is compatible with VBA7 / [twinBASIC](https://twinbasic.com/) / VB6 / VBA6.
 
 ## Installation
 
