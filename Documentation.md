@@ -19,7 +19,9 @@
 - non-recursive implementation - avoids 'Out of stack space' for deep nesting
 - fast, for a native implementation 
 - automatic encoding detection and conversion. Supports: ```UTF8```, ```UTF16LE```, ```UTF16BE```, ```UTF32LE```, ```UTF32BE```
-- various extensions via the available parameters - see [Parser extensions](https://github.com/cristianbuse/VBA-FastJSON/blob/master/Documentation.md#extensions).
+- various extensions via the available parameters - see [Parser extensions](https://github.com/cristianbuse/VBA-FastJSON/blob/master/Documentation.md#extensions)
+- json input can be a ```String``` or a one-dimensional array of ```Byte()``` or ```Integer()``` type
+- input is parsed in place without making any copies
 
 Does not raise errors. It returns the following custom structure / type:
 ```VBA
