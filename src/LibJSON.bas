@@ -58,13 +58,13 @@ Option Private Module
 
 #If Mac Then
     #If VBA7 Then 'https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/iconv.3.html
-        Private Declare PtrSafe Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, Source As Any, ByVal Length As LongPtr) As LongPtr
+        Private Declare PtrSafe Function memmove Lib "/usr/lib/libc.dylib" (Destination As Any, Source As Any, ByVal Length As LongPtr) As LongPtr
         Private Declare PtrSafe Function iconv Lib "/usr/lib/libiconv.dylib" (ByVal cd As LongPtr, ByRef inBuf As LongPtr, ByRef inBytesLeft As LongPtr, ByRef outBuf As LongPtr, ByRef outBytesLeft As LongPtr) As LongPtr
         Private Declare PtrSafe Function iconv_open Lib "/usr/lib/libiconv.dylib" (ByVal toCode As LongPtr, ByVal fromCode As LongPtr) As LongPtr
         Private Declare PtrSafe Function iconv_close Lib "/usr/lib/libiconv.dylib" (ByVal cd As LongPtr) As Long
         Private Declare PtrSafe Function errno_location Lib "/usr/lib/libSystem.B.dylib" Alias "__error" () As LongPtr
     #Else
-        Private Declare Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, Source As Any, ByVal Length As Long) As Long
+        Private Declare Function memmove Lib "/usr/lib/libc.dylib" (Destination As Any, Source As Any, ByVal Length As Long) As Long
         Private Declare Function iconv Lib "/usr/lib/libiconv.dylib" (ByVal cd As Long, ByRef inBuf As Long, ByRef inBytesLeft As Long, ByRef outBuf As Long, ByRef outBytesLeft As Long) As Long
         Private Declare Function iconv_open Lib "/usr/lib/libiconv.dylib" (ByVal toCode As Long, ByVal fromCode As Long) As Long
         Private Declare Function iconv_close Lib "/usr/lib/libiconv.dylib" (ByVal cd As Long) As Long
@@ -72,11 +72,11 @@ Option Private Module
     #End If
 #Else 'Windows
     #If VBA7 Then
-        Private Declare PtrSafe Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As LongPtr)
+        Private Declare PtrSafe Sub VariantCopy Lib "oleaut32.dll" (ByRef pvargDest As Variant, ByVal pvargSrc As LongPtr)
         Private Declare PtrSafe Function MultiByteToWideChar Lib "kernel32" (ByVal codePage As Long, ByVal dwFlags As Long, ByVal lpMultiByteStr As LongPtr, ByVal cbMultiByte As Long, ByVal lpWideCharStr As LongPtr, ByVal cchWideChar As Long) As Long
         Private Declare PtrSafe Function WideCharToMultiByte Lib "kernel32" (ByVal codePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As LongPtr, ByVal cchWideChar As Long, ByVal lpMultiByteStr As LongPtr, ByVal cbMultiByte As Long, ByVal lpDefaultChar As LongPtr, ByVal lpUsedDefaultChar As LongPtr) As Long
     #Else
-        Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+        Private Declare Sub VariantCopy Lib "oleaut32.dll" (ByRef pvargDest As Variant, ByVal pvargSrc As Long)
         Private Declare Function MultiByteToWideChar Lib "kernel32" (ByVal codePage As Long, ByVal dwFlags As Long, ByVal lpMultiByteStr As Long, ByVal cchMultiByte As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long) As Long
         Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal codePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, ByVal lpMultiByteStr As Long, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, ByVal lpUsedDefaultChar As Long) As Long
     #End If
@@ -525,14 +525,14 @@ Private Function Decode(ByVal jsonPtr As LongPtr _
             collDescriptors.Add cd, CStr(jpCode)
         End If
         Do
-            CopyMemory ByVal errno_location, 0&, longSize
+            memmove ByVal errno_location, 0&, longSize
             inPrevLeft = inBytesLeft
             outPrevLeft = outBytesLeft
             nonRev = iconv(cd, jsonPtr, inBytesLeft, outBuffPtr, outBytesLeft)
             If nonRev >= 0 Then Exit Do
             Const EILSEQ As Long = 92
             Const EINVAL As Long = 22
-            Dim errNo As Long: CopyMemory errNo, ByVal errno_location, longSize
+            Dim errNo As Long: memmove errNo, ByVal errno_location, longSize
             '
             If (errNo = EILSEQ Eqv errNo = EINVAL) Or failIfInvalidByteSequence _
             Then
@@ -544,7 +544,7 @@ Private Function Decode(ByVal jsonPtr As LongPtr _
                 outErrDesc = outErrDesc & " from CP" & jpCode
                 Exit Function
             End If
-            CopyMemory ByVal outBuffPtr, ByVal defPtr, intSize
+            memmove ByVal outBuffPtr, ByVal defPtr, intSize
             outBytesLeft = outBytesLeft - intSize
             outBuffPtr = outBuffPtr + intSize
             jsonPtr = jsonPtr + byteSize
@@ -660,15 +660,15 @@ End Sub
 
 Private Property Let MemLongPtr(ByVal memAddress As LongPtr _
                               , ByVal newValue As LongPtr)
-    #If Mac Or (VBA7 = 0) Then
-        CopyMemory ByVal memAddress, newValue, ptrSize
+    #If Mac Then
+        memmove ByVal memAddress, newValue, ptrSize
     #ElseIf TWINBASIC Then
         PutMemPtr memAddress, newValue
     #Else
         Static pa As PointerAccessor
         If pa.sa.cDims = 0 Then
             InitSafeArray pa.sa, ptrSize
-            CopyMemory pa, VarPtr(pa.sa), ptrSize 'Only API call
+            MemLongPtrRef(VarPtr(pa)) = VarPtr(pa.sa)
         End If
         '
         pa.sa.pvData = memAddress
@@ -679,8 +679,8 @@ Private Property Let MemLongPtr(ByVal memAddress As LongPtr _
     #End If
 End Property
 Private Property Get MemLongPtr(ByVal memAddress As LongPtr) As LongPtr
-    #If Mac Or (VBA7 = 0) Then
-        CopyMemory MemLongPtr, ByVal memAddress, ptrSize
+    #If Mac Then
+        memmove MemLongPtr, ByVal memAddress, ptrSize
     #ElseIf TWINBASIC Then
         GetMemPtr memAddress, MemLongPtr
     #Else
@@ -698,6 +698,45 @@ Private Property Get MemLongPtr(ByVal memAddress As LongPtr) As LongPtr
         pa.sa.pvData = NullPtr
     #End If
 End Property
+
+'By not using RtlMoveMemory we avoid Windows Defender alerts with kernel.dll
+#If Windows Then
+Public Property Let MemLongPtrRef(ByVal memAddress As LongPtr _
+                                , ByVal newValue As LongPtr)
+#If Win64 Then 'Define Variant Size in # pointers
+    Const ptrsNeeded As Long = 3 '8 * 3 = 24
+#Else
+    Const ptrsNeeded As Long = 4 '4 * 4 = 16
+#End If
+    Const VT_BYREF As Long = &H4000
+    Dim memValue As Variant
+    Dim remoteVT As Variant
+    Dim fakeVariant(0 To ptrsNeeded - 1) As LongPtr 'Avoid UDT
+    '
+    fakeVariant(ptrsNeeded - 2) = VarPtr(memValue)
+    fakeVariant(0) = vbInteger + VT_BYREF
+    VariantCopy remoteVT, VarPtr(fakeVariant(0)) 'Init VarType ByRef
+    '
+#If Win64 Then 'Cannot assign LongLong ByRef
+    Dim c As Currency
+    RemoteAssign memValue, VarPtr(newValue), remoteVT, vbCurrency + VT_BYREF, c, memValue
+    RemoteAssign memValue, memAddress, remoteVT, vbCurrency + VT_BYREF, memValue, c
+#Else 'Can assign Long ByRef
+    RemoteAssign memValue, memAddress, remoteVT, vbLong + VT_BYREF, memValue, newValue
+#End If
+End Property
+Private Sub RemoteAssign(ByRef memValue As Variant _
+                       , ByRef memAddress As LongPtr _
+                       , ByRef remoteVT As Variant _
+                       , ByVal newVT As VbVarType _
+                       , ByRef targetVariable As Variant _
+                       , ByRef newValue As Variant)
+    memValue = memAddress
+    remoteVT = newVT
+    targetVariable = newValue
+    remoteVT = vbEmpty
+End Sub
+#End If
 
 'Non-recursive parser
 Private Function ParseChars(ByRef inChars() As Integer _
