@@ -104,6 +104,11 @@ Private Enum DataTypeSize
     ptrSize = 4
 #End If
     currSize = 8
+#If x64 Then
+    variantSize = 24
+#Else
+    variantSize = 16
+#End If
 End Enum
 
 #If x64 Then
@@ -150,6 +155,15 @@ Private Type PointerAccessor
 End Type
 Private Type CurrencyAccessor
     arr() As Currency
+    sa As SAFEARRAY_1D
+End Type
+Private Type VariantAccessor
+    arr() As Variant
+    vt() As Integer
+    sa As SAFEARRAY_1D
+End Type
+Private Type SABoundAccessor
+    rgsabound() As SAFEARRAYBOUND
     sa As SAFEARRAY_1D
 End Type
 
@@ -656,6 +670,9 @@ Private Sub InitAccessor(ByVal accPtr As LongPtr _
                        , ByVal elemSize As DataTypeSize)
     InitSafeArray sa, elemSize
     MemLongPtr(accPtr) = VarPtr(sa)
+    If elemSize = variantSize Then 'Init auxiliary VarType
+        MemLongPtr(accPtr + ptrSize) = VarPtr(sa)
+    End If
 End Sub
 
 Private Sub InitSafeArray(ByRef sa As SAFEARRAY_1D, ByVal elemSize As Long)
