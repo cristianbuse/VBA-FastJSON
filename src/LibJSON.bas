@@ -184,11 +184,13 @@ Private Enum CharCode
     ccZero = 48         '0x30 0
     ccNine = 57         '0x39 9
     ccColon = 58        '0x3A :
+    ccCapitalE = 69     '0x45 E
     ccArrayStart = 91   '0x5B [
     ccBackslash = 92    '0x5C \
     ccArrayEnd = 93     '0x5D ]
     ccBacktick = 96     '0x60 `
     ccLowB = 98         '0x62 b
+    ccLowE = 101        '0x65 e
     ccLowF = 102        '0x66 f
     ccLowN = 110        '0x6E n
     ccLowR = 114        '0x72 r
@@ -196,6 +198,7 @@ Private Enum CharCode
     ccLowU = 117        '0x75 u
     ccObjectStart = 123 '0x7B {
     ccObjectEnd = 125   '0x7D }
+    ccDel = 127         '0x7F DEL - last ASCII
 End Enum
 
 Private Enum CharType
@@ -1100,8 +1103,8 @@ Private Sub InitCharMap(ByRef cm As CharacterMap)
     cm.toType(ccPlus) = numSign
     cm.toType(ccMinus) = numSign
     cm.toType(ccDot) = numDot
-    cm.toType(69) = numExp  'e
-    cm.toType(101) = numExp 'E
+    cm.toType(ccCapitalE) = numExp
+    cm.toType(ccLowE) = numExp
     '
     'Map nibbles in escaped 4-hex Unicode chracters e.g. \u2713 (check mark)
     'Avoids the use of ChrW by precomputing all hex digits and their position
