@@ -84,6 +84,9 @@ Option Private Module
 
 #Const Windows = (Mac = 0)
 #Const x64 = Win64
+#If (x64 = 0) Or Mac Then
+    Const vbLongLong = 20
+#End If
 
 #If VBA7 = 0 Then
     Private Enum LongPtr
@@ -148,6 +151,12 @@ End Type
 Private Type CurrencyAccessor
     arr() As Currency
     sa As SAFEARRAY_1D
+End Type
+
+Private Type FakeVariant
+    vt As Integer
+    wReserved(0 To 2) As Integer
+    ptrs(0 To 1) As LongPtr
 End Type
 
 Private Type FourByteTemplate
@@ -217,7 +226,7 @@ Private Enum AllowedToken
     allowValue = 32
 End Enum
 
-Private Type ContextInfo
+Private Type ParseContextInfo
     coll As Collection
     dict As Dictionary
     tAllow As AllowedToken
@@ -606,8 +615,8 @@ End Function
 Private Sub ReverseBytes(ByVal jsonPtr As LongPtr _
                        , ByVal sizeB As Long _
                        , ByRef outBuff As String _
-                       , ByRef outBuffSize As Long _
-                       , ByRef outBuffPtr As LongPtr)
+                       , Optional ByRef outBuffSize As Long _
+                       , Optional ByRef outBuffPtr As LongPtr)
     Static bytesSrc As ByteAccessor
     Static bytesDest As ByteAccessor
     Dim i As Long
@@ -699,23 +708,17 @@ Private Property Get MemLongPtr(ByVal memAddress As LongPtr) As LongPtr
     #End If
 End Property
 
-'By not using RtlMoveMemory we avoid Windows Defender alerts with kernel.dll
 #If Windows Then
-Public Property Let MemLongPtrRef(ByVal memAddress As LongPtr _
-                                , ByVal newValue As LongPtr)
-#If Win64 Then 'Define Variant Size in # pointers
-    Const ptrsNeeded As Long = 3 '8 * 3 = 24
-#Else
-    Const ptrsNeeded As Long = 4 '4 * 4 = 16
-#End If
+Private Property Let MemLongPtrRef(ByVal memAddress As LongPtr _
+                                 , ByVal newValue As LongPtr)
     Const VT_BYREF As Long = &H4000
     Dim memValue As Variant
     Dim remoteVT As Variant
-    Dim fakeVariant(0 To ptrsNeeded - 1) As LongPtr 'Avoid UDT
+    Dim fv As FakeVariant
     '
-    fakeVariant(ptrsNeeded - 2) = VarPtr(memValue)
-    fakeVariant(0) = vbInteger + VT_BYREF
-    VariantCopy remoteVT, VarPtr(fakeVariant(0)) 'Init VarType ByRef
+    fv.ptrs(0) = VarPtr(memValue)
+    fv.vt = vbInteger + VT_BYREF
+    VariantCopy remoteVT, VarPtr(fv) 'Init VarType ByRef
     '
 #If Win64 Then 'Cannot assign LongLong ByRef
     Dim c As Currency
@@ -770,11 +773,12 @@ Private Function ParseChars(ByRef inChars() As Integer _
     '
     On Error GoTo ErrorHandler
     '
-    Dim cInfo As ContextInfo
+    Dim cInfo As ParseContextInfo
     Dim depth As Long
     Dim ch As Integer
     Dim wasValue As Boolean
-    Dim parents() As ContextInfo: ReDim parents(0 To 0)
+    Dim parents() As ParseContextInfo
+    Dim ubParents As Long
     Dim buffSize As Long: buffSize = 16
     Dim sBuff As String:  sBuff = Space$(buffSize)
     Dim ub As Long:       ub = UBound(inChars)
@@ -794,7 +798,10 @@ Private Function ParseChars(ByRef inChars() As Integer _
             If (cInfo.tAllow And allowValue) = 0 Then GoTo Unexpected
             depth = depth + 1
             If depth > inOptions.maxDepth Then Err.Raise 5, , "Max Depth Hit"
-            If depth > UBound(parents) Then ReDim Preserve parents(0 To depth)
+            If depth > ubParents Then
+                ReDim Preserve parents(0 To depth)
+                ubParents = depth
+            End If
             parents(depth) = cInfo
             '
             cInfo = parents(0) 'Clears members
