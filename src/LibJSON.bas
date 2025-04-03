@@ -1370,7 +1370,7 @@ Public Function Serialize(ByRef jsonData As Variant _
             '
             'Check for circular references
             'For deep nesting might be worth implementing a Dictionary
-            For i = depth - 1 To 0 Step -1
+            For i = depth To 0 Step -1
                 If levels(i).iUnkPtr = iPtr Then
                     If failIfCircularRef Then
                         outError = "Circular reference detected"
