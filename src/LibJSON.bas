@@ -1162,3 +1162,20 @@ Private Function IsFastDict() As Boolean
     IsFastDict = (Err.Number = 0)
     On Error GoTo 0
 End Function
+
+'Uses the yyyy-mm-ddThh:nn:ss.sZ extended format
+Private Function FormatISOExt(ByRef vDate As Variant) As String
+    Const secondsPerDay As Double = 86400
+    Const usPerSecond As Double = 1000000
+    Dim days As Double: days = vDate
+    Dim frac As Double: frac = (days - Int(days)) * secondsPerDay
+    '
+    frac = CLng((frac - Int(frac)) * usPerSecond) / usPerSecond
+    If frac = 0 Or frac = 1 Then
+        FormatISOExt = Format$(days, "\""yyyy-mm-ddThh:nn:ssZ\""")
+    Else
+        days = days - frac \ secondsPerDay 'Avoid rounding
+        FormatISOExt = Format$(days, "\""yyyy-mm-ddThh:nn:ss") _
+                     & Format$(frac, ".0##Z\""")
+    End If
+End Function
