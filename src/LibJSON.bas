@@ -1179,3 +1179,46 @@ Private Function FormatISOExt(ByRef vDate As Variant) As String
                      & Format$(frac, ".0##Z\""")
     End If
 End Function
+
+'This is not a 'Stable' Sort i.e. equal values do not preserve their order
+'https://en.wikipedia.org/wiki/Quicksort
+Private Sub QuickSortKeys(ByRef arrKeys() As Variant _
+                        , ByRef arrItems() As Variant _
+                        , ByVal lb As Long _
+                        , ByVal ub As Long)
+    If lb >= ub Then Exit Sub
+    '
+    Dim newLB As Long: newLB = lb
+    Dim newUB As Long: newUB = ub
+    Dim p As Long:     p = (lb + ub) \ 2
+    '
+    Do While newLB <= newUB
+        Do While newLB < ub
+            If arrKeys(newLB) >= arrKeys(p) Then Exit Do
+            newLB = newLB + 1
+        Loop
+        Do While newUB > lb
+            If arrKeys(p) >= arrKeys(newUB) Then Exit Do
+            newUB = newUB - 1
+        Loop
+        If newLB <= newUB Then
+            If newLB <> newUB Then 'Swap
+                'Can be more efficient if using memory accessors
+                Dim setL As Boolean: setL = IsObject(arrItems(newLB))
+                Dim setU As Boolean: setU = IsObject(arrItems(newUB))
+                Dim v As Variant:    v = arrKeys(newLB) 'Keys are Text or Empty
+                '
+                arrKeys(newLB) = arrKeys(newUB)
+                arrKeys(newUB) = v
+                If setL Then Set v = arrItems(newLB) Else v = arrItems(newLB)
+                If setU Then Set arrItems(newLB) = arrItems(newUB) _
+                             Else arrItems(newLB) = arrItems(newUB)
+                If setL Then Set arrItems(newUB) = v Else arrItems(newUB) = v
+            End If
+            newLB = newLB + 1
+            newUB = newUB - 1
+        End If
+    Loop
+    QuickSortKeys arrKeys, arrItems, lb, newUB
+    QuickSortKeys arrKeys, arrItems, newLB, ub
+End Sub
