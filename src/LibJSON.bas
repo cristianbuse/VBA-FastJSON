@@ -785,6 +785,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
     Dim buffSize As Long: buffSize = 16
     Dim sBuff As String:  sBuff = Space$(buffSize)
     Dim ub As Long:       ub = UBound(inChars)
+    Dim chDot As Integer: chDot = AscW(Mid$(CStr(1.1), 2, 1)) 'Locale Dot
     '
     i = 0
     cInfo.tAllow = allowValue
@@ -948,6 +949,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
                                           Or hasExp Then GoTo Unexpected
                     hasDot = True
                     hasLeadZero = False
+                    ch = chDot 'We avoid Val() because we also want CDec()
                 ElseIf ct = numExp Then
                     If prevCT <> numDigit Or hasExp Then GoTo Unexpected
                     hasExp = True
