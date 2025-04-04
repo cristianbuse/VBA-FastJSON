@@ -43,6 +43,7 @@ For more details see [Serializer documentation](https://github.com/cristianbuse/
 - returns a ```String``` data type
 - detects circular object references
 - can sort keys
+- supports multi-dimensional arrays, row-wise
 - supports encoding: ```UTF8```, ```UTF16LE``` (default), ```UTF16BE```, ```UTF32LE```, ```UTF32BE```
 - does not throw errors
 
