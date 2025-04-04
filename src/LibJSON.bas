@@ -17,6 +17,12 @@ Attribute VB_Name = "LibJSON"
 ''     * Comments not supported, trailing or inline
 ''       They are simply treated as normal text if inside a json string
 ''     * Supports 'extensions' via the available arguments - see repository docs
+''  - Serializer:
+''     * Non-Recursive - avoids 'Out of stack space' for deep nesting
+''     * Detects cirular object references
+''     * Can sort keys
+''     * Supports multi-dimensional arrays
+''     * Supports 'options' via the available arguments - see repository docs
 ''==============================================================================
 
 '===============================================================================
@@ -1323,8 +1329,6 @@ Public Function Serialize(ByRef jsonData As Variant _
     Dim buff As TextBuffer
     Dim i As Long
     Dim j As Long
-    '
-    'Map for escaped control characters?
     '
     If indentSpaces > 0 Then
         beautify = True
