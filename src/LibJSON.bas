@@ -1274,7 +1274,7 @@ Public Function Serialize(ByRef jsonData As Variant _
                         , Optional ByVal formatDateISO As Boolean = False _
                         , Optional ByVal jpCode As JsonPageCode = jpCodeUTF16LE _
                         , Optional ByRef outError As String) As String
-    Const dateF As String = "\""yyyy-mm-dd hh:nn:ss\"""
+    Const dateF As String = "yyyy-mm-dd hh:nn:ss"
     Const maxBit As Long = &H40000000
     Const maxBuf As Long = &H7FFFFFFF
     Const initLevels As Long = 16
@@ -1923,11 +1923,11 @@ Private Function FormatISOExt(ByRef vDate As Variant) As String
     '
     frac = CLng((frac - Int(frac)) * usPerSecond) / usPerSecond
     If frac = 0 Or frac = 1 Then
-        FormatISOExt = Format$(days, "\""yyyy-mm-ddThh:nn:ssZ\""")
+        FormatISOExt = Format$(days, "yyyy-mm-ddThh:nn:ssZ")
     Else
         days = days - frac / secondsPerDay 'Avoid rounding
-        FormatISOExt = Format$(days, "\""yyyy-mm-ddThh:nn:ss") _
-                     & Format$(frac, ".0##Z\""")
+        FormatISOExt = Format$(days, "yyyy-mm-ddThh:nn:ss") _
+                     & Format$(frac, ".0##Z")
     End If
 End Function
 
