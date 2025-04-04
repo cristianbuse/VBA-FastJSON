@@ -565,100 +565,100 @@ Private Function Decode(ByVal jsonPtr As LongPtr _
                       , ByRef outBuffPtr As LongPtr _
                       , ByRef outErrDesc As String _
                       , ByVal failIfInvalidByteSequence As Boolean) As Boolean
-    #If Mac Then
-        outBuff = Space$(sizeB * 2)
-        outBuffSize = sizeB * 4
-        outBuffPtr = StrPtr(outBuff)
-        '
-        Dim inBytesLeft As LongPtr:  inBytesLeft = sizeB
-        Dim outBytesLeft As LongPtr: outBytesLeft = outBuffSize
-        Static collDescriptors As New Collection
-        Dim cd As LongPtr
-        Dim defaultChar As String: defaultChar = ChrW$(&HFFFD)
-        Dim defPtr As LongPtr:     defPtr = StrPtr(defaultChar)
-        Dim nonRev As LongPtr
-        Dim inPrevLeft As LongPtr
-        Dim outPrevLeft As LongPtr
-        '
-        On Error Resume Next
-        cd = collDescriptors(CStr(jpCode))
-        On Error GoTo 0
-        '
-        If cd = NullPtr Then
-            Static descTo As String
-            Dim descFrom As String: descFrom = PageCodeDesc(jpCode)
-            If LenB(descTo) = 0 Then descTo = PageCodeDesc(jpCodeUTF16LE)
-            cd = iconv_open(StrPtr(descTo), StrPtr(descFrom))
-            If cd = -1 Then
-                outErrDesc = "Unsupported page code conversion"
-                Exit Function
-            End If
-            collDescriptors.Add cd, CStr(jpCode)
-        End If
-        Do
-            memmove ByVal errno_location, 0&, longSize
-            inPrevLeft = inBytesLeft
-            outPrevLeft = outBytesLeft
-            nonRev = iconv(cd, jsonPtr, inBytesLeft, outBuffPtr, outBytesLeft)
-            If nonRev >= 0 Then Exit Do
-            Const EILSEQ As Long = 92
-            Const EINVAL As Long = 22
-            Dim errNo As Long: memmove errNo, ByVal errno_location, longSize
-            '
-            If (errNo = EILSEQ Eqv errNo = EINVAL) Or failIfInvalidByteSequence _
-            Then
-                Select Case errNo
-                    Case EILSEQ: outErrDesc = "Invalid byte sequence: "
-                    Case EINVAL: outErrDesc = "Incomplete byte sequence: "
-                    Case Else:   outErrDesc = "Failed conversion: "
-                End Select
-                outErrDesc = outErrDesc & " from CP" & jpCode
-                Exit Function
-            End If
-            memmove ByVal outBuffPtr, ByVal defPtr, intSize
-            outBytesLeft = outBytesLeft - intSize
-            outBuffPtr = outBuffPtr + intSize
-            jsonPtr = jsonPtr + byteSize
-            inBytesLeft = inBytesLeft - byteSize
-        Loop
-        outBuffSize = (outBuffSize - CLng(outBytesLeft)) \ 2
-        outBuffPtr = StrPtr(outBuff)
-        Decode = True
-    #Else
-        Const MB_ERR_INVALID_CHARS As Long = 8
-        Dim charCount As Long
-        Dim dwFlags As Long
-        '
-        If failIfInvalidByteSequence Then
-            Select Case jpCode
-            Case jpCodeUTF8, jpCodeUTF32LE, jpCodeUTF32BE
-                dwFlags = MB_ERR_INVALID_CHARS
-            End Select
-        End If
-        charCount = MultiByteToWideChar(jpCode, dwFlags, jsonPtr, sizeB, 0, 0)
-        If charCount = 0 Then
-            Const ERROR_INVALID_PARAMETER      As Long = 87
-            Const ERROR_NO_UNICODE_TRANSLATION As Long = 1113
-            '
-            Select Case Err.LastDllError
-            Case ERROR_NO_UNICODE_TRANSLATION
-                outErrDesc = "Invalid CP" & jpCode & " byte sequence"
-            Case ERROR_INVALID_PARAMETER
-                outErrDesc = "Code Page: " & jpCode & " not supported"
-            Case Else
-                outErrDesc = "Unicode conversion failed"
-            End Select
+#If Mac Then
+    outBuff = Space$(sizeB * 2)
+    outBuffSize = sizeB * 4
+    outBuffPtr = StrPtr(outBuff)
+    '
+    Dim inBytesLeft As LongPtr:  inBytesLeft = sizeB
+    Dim outBytesLeft As LongPtr: outBytesLeft = outBuffSize
+    Static collDescriptors As New Collection
+    Dim cd As LongPtr
+    Dim defaultChar As String: defaultChar = ChrW$(&HFFFD)
+    Dim defPtr As LongPtr:     defPtr = StrPtr(defaultChar)
+    Dim nonRev As LongPtr
+    Dim inPrevLeft As LongPtr
+    Dim outPrevLeft As LongPtr
+    '
+    On Error Resume Next
+    cd = collDescriptors(CStr(jpCode))
+    On Error GoTo 0
+    '
+    If cd = NullPtr Then
+        Static descTo As String
+        Dim descFrom As String: descFrom = PageCodeDesc(jpCode)
+        If LenB(descTo) = 0 Then descTo = PageCodeDesc(jpCodeUTF16LE)
+        cd = iconv_open(StrPtr(descTo), StrPtr(descFrom))
+        If cd = -1 Then
+            outErrDesc = "Unsupported page code conversion"
             Exit Function
         End If
-        outBuff = Space$(charCount)
-        outBuffPtr = StrPtr(outBuff)
-        outBuffSize = charCount
+        collDescriptors.Add cd, CStr(jpCode)
+    End If
+    Do
+        memmove ByVal errno_location, 0&, longSize
+        inPrevLeft = inBytesLeft
+        outPrevLeft = outBytesLeft
+        nonRev = iconv(cd, jsonPtr, inBytesLeft, outBuffPtr, outBytesLeft)
+        If nonRev >= 0 Then Exit Do
+        Const EILSEQ As Long = 92
+        Const EINVAL As Long = 22
+        Dim errNo As Long: memmove errNo, ByVal errno_location, longSize
         '
-        MultiByteToWideChar jpCode, dwFlags, jsonPtr _
-                          , sizeB, outBuffPtr, charCount
-        Decode = (charCount = outBuffSize)
-        If Not Decode Then outErrDesc = "Unicode conversion failed"
-    #End If
+        If (errNo = EILSEQ Eqv errNo = EINVAL) Or failIfInvalidByteSequence _
+        Then
+            Select Case errNo
+                Case EILSEQ: outErrDesc = "Invalid byte sequence: "
+                Case EINVAL: outErrDesc = "Incomplete byte sequence: "
+                Case Else:   outErrDesc = "Failed conversion: "
+            End Select
+            outErrDesc = outErrDesc & " from CP" & jpCode
+            Exit Function
+        End If
+        memmove ByVal outBuffPtr, ByVal defPtr, intSize
+        outBytesLeft = outBytesLeft - intSize
+        outBuffPtr = outBuffPtr + intSize
+        jsonPtr = jsonPtr + byteSize
+        inBytesLeft = inBytesLeft - byteSize
+    Loop
+    outBuffSize = (outBuffSize - CLng(outBytesLeft)) \ 2
+    outBuffPtr = StrPtr(outBuff)
+    Decode = True
+#Else
+    Const MB_ERR_INVALID_CHARS As Long = 8
+    Dim charCount As Long
+    Dim dwFlags As Long
+    '
+    If failIfInvalidByteSequence Then
+        Select Case jpCode
+        Case jpCodeUTF8, jpCodeUTF32LE, jpCodeUTF32BE
+            dwFlags = MB_ERR_INVALID_CHARS
+        End Select
+    End If
+    charCount = MultiByteToWideChar(jpCode, dwFlags, jsonPtr, sizeB, 0, 0)
+    If charCount = 0 Then
+        Const ERROR_INVALID_PARAMETER      As Long = 87
+        Const ERROR_NO_UNICODE_TRANSLATION As Long = 1113
+        '
+        Select Case Err.LastDllError
+        Case ERROR_NO_UNICODE_TRANSLATION
+            outErrDesc = "Invalid CP" & jpCode & " byte sequence"
+        Case ERROR_INVALID_PARAMETER
+            outErrDesc = "Code Page: " & jpCode & " not supported"
+        Case Else
+            outErrDesc = "Unicode conversion failed"
+        End Select
+        Exit Function
+    End If
+    outBuff = Space$(charCount)
+    outBuffPtr = StrPtr(outBuff)
+    outBuffSize = charCount
+    '
+    MultiByteToWideChar jpCode, dwFlags, jsonPtr _
+                      , sizeB, outBuffPtr, charCount
+    Decode = (charCount = outBuffSize)
+    If Not Decode Then outErrDesc = "Unicode conversion failed"
+#End If
 End Function
 #If Mac Then
 Private Function PageCodeDesc(ByVal jpCode As JsonPageCode) As String
@@ -1749,6 +1749,8 @@ InsertNull: ep = epNull
     ElseIf jpCode = jpCodeUTF16BE Then
         ReverseBytes StrPtr(buff.Text), (buff.Index - 1) * 2, Serialize
     Else
+        
+    
         outError = "Conversion not yet supported"
     End If
 Clean:
