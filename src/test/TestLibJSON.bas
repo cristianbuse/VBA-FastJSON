@@ -783,6 +783,7 @@ Public Sub RunAllJSONSerializeTests()
     TestSerializeNonTextKeys
     TestSerializeCircularRef
     TestSerializeCodePage
+    TestSerializeMultiDimensionalArrays
     Debug.Print "Finished running serializer tests at " & Now()
 End Sub
 
@@ -1087,6 +1088,38 @@ Private Sub TestSerializeCodePage()
     Debug.Assert Serialize(ChrW$(&HD888) & ChrW$(&H1234), escapeNonASCII:=False, jpCode:=jpCodeUTF8) = ChrW$(&HEF22) & ChrW$(&HBDBF) & ChrW$(&H88E1) & ChrW$(&H22B4)
 End Sub
 
+Private Sub TestSerializeMultiDimensionalArrays()
+    Dim arr2D(1 To 3, 1 To 2) As Long
+    Dim arr3D(1 To 2, 1 To 2, 1 To 4) As Long
+    Dim i As Long
+    Dim j As Long
+    Dim k As Long
+    Dim n As Long
+    '
+    'Populate a 2 Dimensional Array with consecutive numbers row-wise
+    n = 0
+    For i = LBound(arr2D, 1) To UBound(arr2D, 1)
+        For j = LBound(arr2D, 2) To UBound(arr2D, 2)
+            n = n + 1
+            arr2D(i, j) = n
+        Next j
+    Next i
+    '
+    'Populate a 3 Dimensional Array with consecutive numbers row-wise
+    n = 0
+    For i = LBound(arr3D, 1) To UBound(arr3D, 1)
+        For j = LBound(arr3D, 2) To UBound(arr3D, 2)
+            For k = LBound(arr3D, 3) To UBound(arr3D, 3)
+                n = n + 1
+                arr3D(i, j, k) = n
+            Next k
+        Next j
+    Next i
+    '
+    Debug.Assert Serialize(arr2D) = "[[1,2],[3,4],[5,6]]"
+    Debug.Assert Serialize(arr3D) = "[[[1,2,3,4],[5,6,7,8]],[[9,10,11,12],[13,14,15,16]]]"
+End Sub
+
 '*******************************************************************************
 'Utilities
 '*******************************************************************************
@@ -1156,23 +1189,23 @@ Private Function AreEqual(ByVal v1 As Variant, ByVal v2 As Variant) As Boolean
     End If
 ErrorHandler:
 End Function
-Private Function Collection(ParamArray values() As Variant) As Collection
+Private Function Collection(ParamArray Values() As Variant) As Collection
     Dim v As Variant
     Dim coll As Collection
     '
     Set coll = New Collection
-    For Each v In values
+    For Each v In Values
         coll.Add v
     Next v
     Set Collection = coll
 End Function
-Private Function Dictionary(ParamArray values() As Variant) As Dictionary
+Private Function Dictionary(ParamArray Values() As Variant) As Dictionary
     Dim i As Long
     Dim dict As Dictionary
     '
     Set dict = New Dictionary
-    For i = 0 To UBound(values) Step 2
-        dict.Add values(i), values(i + 1)
+    For i = 0 To UBound(Values) Step 2
+        dict.Add Values(i), Values(i + 1)
     Next i
     Set Dictionary = dict
 End Function
