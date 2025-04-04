@@ -1925,7 +1925,7 @@ Private Function FormatISOExt(ByRef vDate As Variant) As String
     If frac = 0 Or frac = 1 Then
         FormatISOExt = Format$(days, "\""yyyy-mm-ddThh:nn:ssZ\""")
     Else
-        days = days - frac \ secondsPerDay 'Avoid rounding
+        days = days - frac / secondsPerDay 'Avoid rounding
         FormatISOExt = Format$(days, "\""yyyy-mm-ddThh:nn:ss") _
                      & Format$(frac, ".0##Z\""")
     End If
