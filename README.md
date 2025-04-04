@@ -3,9 +3,7 @@ Fast Native JSON Parser / Serializer for VBA. Compatible with Windows and Mac.
 
 [RFC 8259](https://datatracker.ietf.org/doc/html/rfc8259) compliant.
 
-This parser is intended for VBA. However, it is compatible with VBA7 / [twinBASIC](https://twinbasic.com/) / VB6 / VBA6.
-
-Serializer is work in progress...
+This Parser / Serializer is intended for VBA. However, it is compatible with VBA7 / [twinBASIC](https://twinbasic.com/) / VB6 / VBA6.
 
 ## Installation
 
@@ -31,10 +29,22 @@ For more details see [Parser documentation](https://github.com/cristianbuse/VBA-
 - various extensions via the available parameters - see [Parser extensions](https://github.com/cristianbuse/VBA-FastJSON/blob/master/Documentation.md#extensions)
 - json input can be a ```String``` or a one-dimensional array of ```Byte()``` or ```Integer()``` type
 - input is parsed in place without making any copies
+- does not throw errors
 
 ## Serializer
 
-Work in progress...
+For more details see [Serializer documentation](https://github.com/cristianbuse/VBA-FastJSON/blob/master/Documentation.md#serializer).
+
+```Serialize``` method: 
+- non-recursive implementation - avoids 'Out of stack space' for deep nesting
+- fast, for a native implementation
+- supports beautify / minify via the ```indentSpaces``` argument
+- by default, cannot fail - see available options via the function parameters
+- returns a ```String``` data type
+- detects circular object references
+- can sort keys
+- supports encoding: ```UTF8```, ```UTF16LE``` (default), ```UTF16BE```, ```UTF32LE```, ```UTF32BE```
+- does not throw errors
 
 ## Testing
 
