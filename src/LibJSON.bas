@@ -1275,6 +1275,7 @@ Public Function Serialize(ByRef jsonData As Variant _
                         , Optional ByVal jpCode As JsonPageCode = jpCodeUTF16LE _
                         , Optional ByRef outError As String) As String
     Const dateF As String = "yyyy-mm-dd hh:nn:ss"
+    Const dateFStr As String = "\""yyyy-mm-dd hh:nn:ss\"""
     Const maxBit As Long = &H40000000
     Const maxBuf As Long = &H7FFFFFFF
     Const initLevels As Long = 16
@@ -1636,9 +1637,9 @@ InsertNull: ep = epNull
                 encoded(epText).sLen = Len(encoded(epText).s)
             ElseIf vt = vbDate Then 'Quotes already included in formatting
                 If formatDateISO Then
-                    encoded(epText).s = FormatISOExt(vars.arr(0))
+                    encoded(epText).s = """" & FormatISOExt(vars.arr(0)) & """"
                 Else
-                    encoded(epText).s = Format$(vars.arr(0), dateF)
+                    encoded(epText).s = Format$(vars.arr(0), dateFStr)
                 End If
                 encoded(epText).sLen = Len(encoded(epText).s)
             ElseIf (vt And &H14) <> &H4 Then 'Byte, Integer, Long, LongLong
