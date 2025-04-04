@@ -4,14 +4,14 @@
   - [Extensions](#extensions)
     - [Encoding](#encoding)
     - [Trailing comma](#trailing-comma)
-	- [Duplicated keys](#duplicated-keys)
-	- [BOM](#bom)
-	- [Invalid byte sequence](#invalid-byte-sequence)
-	- [Lone surrogates](#lone-surrogates)
-	- [Nesting depth](#nesting-depth)
-
+    - [Duplicated keys](#duplicated-keys)
+    - [BOM](#bom)
+    - [Invalid byte sequence](#invalid-byte-sequence)
+    - [Lone surrogates](#lone-surrogates)
+    - [Nesting depth](#nesting-depth)
 - [Serializer](#serializer)
-
+  - [Options](#serializer-options)
+    - [Minify / Beautify](#minify--beautify)
 ## Parser
 
 ```Parse``` method: 
@@ -161,4 +161,25 @@ This option is in place to avoid application crashes and allow full user control
 
 ## Serializer
 
-Work in progress...
+To be continued...
+
+### Serializer Options
+
+This serializer allows options via the available arguments. Method signature:
+```VBA
+Public Function Serialize(ByRef jsonData As Variant _
+                        , Optional ByVal indentSpaces As Long = 0 _
+                        , Optional ByVal escapeNonASCII As Boolean = True _
+                        , Optional ByVal sortKeys As Boolean = False _
+                        , Optional ByVal forceKeysToText As Boolean = False _
+                        , Optional ByVal failIfNonTextKeys As Boolean = False _
+                        , Optional ByVal failIfCircularRef As Boolean = False _
+                        , Optional ByVal formatDateISO As Boolean = False _
+                        , Optional ByVal jpCode As JsonPageCode = jpCodeUTF16LE _
+                        , Optional ByVal failIfInvalidCharacter As Boolean = False _
+                        , Optional ByRef outError As String) As String
+```
+
+#### Minify / Beautify
+
+To be continued...
