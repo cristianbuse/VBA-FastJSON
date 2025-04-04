@@ -1001,10 +1001,13 @@ Private Sub TestSerializeNonTextKeys()
     '
     Set dict = Dictionary(#4/4/2025#, 1, False, 2, True, 3, Null, 4, Nothing, 5, Collection(1, 2, 3), 6)
     Debug.Assert Serialize(dict) = "{}"
-    Debug.Assert Serialize(dict, forceKeysToText:=True) = "{""2025-04-04 00:00:00"":1,""False"":2,""True"":3}"
-    Debug.Assert Serialize(dict, forceKeysToText:=True, formatDateISO:=True) = "{""2025-04-04T00:00:00Z"":1,""False"":2,""True"":3}"
+    Debug.Assert Serialize(dict, forceKeysToText:=True) = "{""2025-04-04 00:00:00"":1,""false"":2,""true"":3}"
+    Debug.Assert Serialize(dict, forceKeysToText:=True, formatDateISO:=True) = "{""2025-04-04T00:00:00Z"":1,""false"":2,""true"":3}"
     Debug.Assert Serialize(dict, failIfNonTextKeys:=True) = vbNullString
     Debug.Assert Serialize(dict, forceKeysToText:=True, failIfNonTextKeys:=True) = vbNullString
+    '
+    Set dict = Dictionary(CVErr(123), 123, 123.123, 123.123)
+    Debug.Assert Serialize(dict, forceKeysToText:=True) = "{""Error 123"":123,""123.123"":123.123}"
 End Sub
     
 Private Sub TestSerializeCircularRef()

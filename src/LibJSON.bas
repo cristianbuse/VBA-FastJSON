@@ -1459,8 +1459,35 @@ Public Function Serialize(ByRef jsonData As Variant _
                                     Else
                                         .arrKeys(i) = Format$(.arrKeys(i), dateF)
                                     End If
-                                Else
+                                ElseIf vtKey = vbError Then
+                                    ints.sa.pvData = VarPtr(.arrKeys(i)) + pOffset
+                                    j = (ints.arr(0) + &H10000) And &HFFFF&
+                                    .arrKeys(i) = "Error " & CStr(j)
+                                ElseIf vtKey = vbBoolean Then
+                                    .arrKeys(i) = encoded(CLng(.arrKeys(i))).s
+                                ElseIf (vtKey And &H14) <> &H4 Then 'Ints
                                     .arrKeys(i) = CStr(.arrKeys(i))
+                                Else
+                                    Dim isInfOrNaN As Boolean: isInfOrNaN = False
+                                    If vt < vbCurrency Then 'Float
+                                        ints.sa.pvData = VarPtr(.arrKeys(i))
+                                        With infOrNaN(vt)
+                                            ints.sa.pvData = ints.sa.pvData + .Offset
+                                            isInfOrNaN = (ints.arr(0) And .Mask) = .Mask
+                                        End With
+                                    End If
+                                    .arrKeys(i) = CStr(.arrKeys(i))
+                                    If Not isInfOrNaN Then
+                                        ints.sa.pvData = StrPtr(.arrKeys(i))
+                                        ints.sa.rgsabound0.cElements = Len(.arrKeys(i))
+                                        For j = 0 To ints.sa.rgsabound0.cElements - 1
+                                            If numChar(ints.arr(j)) = 0 Then
+                                                ints.arr(j) = ccDot
+                                                Exit For
+                                            End If
+                                        Next j
+                                        ints.sa.rgsabound0.cElements = 1
+                                    End If
                                 End If
                                 lastFound = i
                             ElseIf failIfNonTextKeys Then
@@ -1653,7 +1680,9 @@ InsertNull: ep = epNull
                 End If
                 ints.sa.rgsabound0.cElements = 1
             ElseIf vt = vbError Then
-                encoded(epText).s = """" & CStr(vars.arr(0)) & """"
+                ints.sa.pvData = vars.sa.pvData + pOffset
+                i = (ints.arr(0) + &H10000) And &HFFFF&
+                encoded(epText).s = """Error " & CStr(i) & """"
                 encoded(epText).sLen = Len(encoded(epText).s)
             ElseIf vt = vbDate Then 'Quotes already included in formatting
                 If formatDateISO Then
@@ -1951,7 +1980,7 @@ Private Function FormatISOExt(ByRef vDate As Variant) As String
     Else
         days = days - frac / secondsPerDay 'Avoid rounding
         FormatISOExt = Format$(days, "yyyy-mm-ddThh:nn:ss") _
-                     & Format$(frac, ".0##Z")
+                     & "." & Int(frac * 1000) & "Z"
     End If
 End Function
 
