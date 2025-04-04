@@ -18,10 +18,12 @@ Option Explicit
 Option Private Module
 
 #Const Windows = (Mac = 0)
+#Const x64 = Win64
 Private Const commaA As Byte = &H22
 
 Public Sub RunAllJSONTests()
     RunAllJSONParseTests
+    RunAllJSONSerializeTests
 End Sub
 
 'Test compliance with RFC 8259: https://www.rfc-editor.org/rfc/rfc8259
@@ -54,7 +56,7 @@ Public Sub RunAllJSONParseTests()
     TestParseStringInvalidEscape
     TestParseStringLoneSurrogates
     TestParseStringInvalidUTF8
-    Debug.Print "Finished running tests at " & Now()
+    Debug.Print "Finished running parser tests at " & Now()
 End Sub
 
 '*******************************************************************************
@@ -114,7 +116,7 @@ End Sub
 
 Private Sub TestParseWhitespaceInvalid()
     Debug.Assert Not Parse(vbFormFeed & "1").IsValid
-    Debug.Assert Not Parse(ChrW$(&H2060) & "0").IsValid 'Word Joiner (WJ)
+    Debug.Assert Not Parse(ChrW$(&H2060) & "0").IsValid   'Word Joiner (WJ)
 End Sub
 
 Private Sub TestParseArrayValid()
@@ -769,6 +771,320 @@ Private Sub TestParseStringInvalidUTF8()
     Debug.Assert Parse(BytesToString(commaA, &HF4, &HBF, &HBF, &HBF, commaA), failIfInvalidByteSequence:=True).Value = ChrW$(&HFFFD)
     Debug.Assert Parse(BytesToString(commaA, &HED, &HA0, &H80, commaA), failIfInvalidByteSequence:=True).Value = ChrW$(&HFFFD)
 #End If
+End Sub
+
+Public Sub RunAllJSONSerializeTests()
+    TestSerializePrimitive
+    TestSerializeNested
+    TestSerializeIndent
+    TestSerializeEscaped
+    TestSerializeMisc
+    TestSerializeSortKeys
+    TestSerializeNonTextKeys
+    TestSerializeCircularRef
+    TestSerializeCodePage
+    Debug.Print "Finished running serializer tests at " & Now()
+End Sub
+
+Private Sub TestSerializePrimitive()
+    Debug.Assert Serialize(Null) = "null"
+    Debug.Assert Serialize(False) = "false"
+    Debug.Assert Serialize(True) = "true"
+    Debug.Assert Serialize(Array(False, Null, True, Empty)) = "[false,null,true,null]"
+    Debug.Assert Serialize(CByte(123)) = "123"
+    Debug.Assert Serialize(CInt(123)) = "123"
+    Debug.Assert Serialize(CLng(123)) = "123"
+#If x64 Then
+    Debug.Assert Serialize(CLngLng(123)) = "123"
+#End If
+    Debug.Assert Serialize(CSng(123)) = "123"
+    Debug.Assert Serialize(CDbl(123)) = "123"
+    Debug.Assert Serialize(CCur(123)) = "123"
+#If Windows Then
+    Debug.Assert Serialize(CDec(123)) = "123"
+#End If
+    Debug.Assert Serialize(1E+300) = "1E+300"
+    Debug.Assert Serialize(0.12345) = "0.12345"
+    Debug.Assert Serialize(CSng(-1.2)) = "-1.2"
+    Debug.Assert Serialize(CDbl(-1.2)) = "-1.2"
+    Debug.Assert Serialize(CCur(-1.2)) = "-1.2"
+#If Windows Then
+    Debug.Assert Serialize(CDec(-1.2)) = "-1.2"
+#End If
+    Debug.Assert Serialize(-1.2E+25) = "-1.2E+25"
+    Debug.Assert Serialize(4.94065645841247E-324) = "4.94065645841247E-324"
+    Debug.Assert Serialize(1.79769313486231E+308) = "1.79769313486231E+308"
+    Debug.Assert Serialize("abc") = """abc"""
+    Debug.Assert Serialize("abc\""") = """abc\\\"""""
+    Debug.Assert Serialize("") = """"""
+    Debug.Assert Serialize("\uD800") = """\\uD800"""
+    Debug.Assert Serialize(0) = "0"
+    Debug.Assert Serialize(#4/4/2025#) = """2025-04-04 00:00:00"""
+    Debug.Assert Serialize(#4/4/2025#, formatDateISO:=True) = """2025-04-04T00:00:00Z"""
+    Debug.Assert Serialize(#4/4/2025# + 250.631 / 86400, formatDateISO:=True) = """2025-04-04T00:04:10.631Z"""
+    Debug.Assert Serialize(CVErr(123)) = """Error 123"""
+End Sub
+
+Private Sub TestSerializeNested()
+    Dim s As String
+    Dim dict As Dictionary
+    '
+    s = "[[],[],1,2,3,[[]]]"
+    Debug.Assert Serialize(Parse(s).Value) = s
+    Debug.Assert Serialize(Array(Array(), Array(), 1, 2, 3, Array(Array()))) = s
+    Debug.Assert Serialize(Collection(Collection(), Collection(), 1, 2, 3, Collection(Collection()))) = s
+    '
+    Debug.Assert Serialize(Dictionary("1", 2, "3", 4)) = "{""1"":2,""3"":4}"
+    '
+    s = "{""k"":{""1"":2,""3"":{""1"":2,""3"":{}}}}"
+    Debug.Assert Serialize(Parse(s).Value) = s
+    '
+    s = "{""k"":{""1"":2,""3"":{""1"":[[],[],null,false,true,[[[]]]],""3"":{}}}}"
+    Debug.Assert Serialize(Parse(s).Value, 0) = s
+    '
+    s = "{""k"":{""1"":[[],[],1,null,"""",3,[[[]]]],""3"":{""1"":4,""3"":{}}}}"
+    Debug.Assert Serialize(Parse(s).Value) = s
+    '
+    Dim nestingLevel As Long
+    Dim i As Long
+    '
+#If TWINBASIC Then 'Fast Dictionary does not manage nesting in TB (only in VB*)
+                   'The built-in TB Collection leads to 'Out of stack space' in x32
+    nestingLevel = 100
+#Else
+    If IsFastDict() Then
+        nestingLevel = 10000
+    Else 'Scripting or other
+        nestingLevel = 100
+    End If
+#End If
+    s = RepeatString("{""key"":[", nestingLevel) & RepeatString("]}", nestingLevel)
+    Set dict = Parse(s, maxNestingDepth:=nestingLevel * 2).Value
+    Debug.Assert Serialize(dict) = s
+    '
+    s = "[{},{},{},[],[{}],[{},[]]]"
+    Debug.Assert Serialize(Parse(s).Value) = s
+End Sub
+    
+Private Sub TestSerializeIndent()
+    Dim coll As Collection
+    Dim dict As Dictionary
+    Dim s As String
+    '
+    Set coll = Collection(Collection(), Collection(), 1, 2, 3, Collection(Collection()))
+    Debug.Assert Serialize(coll, 0) = "[[],[],1,2,3,[[]]]"
+    Debug.Assert Serialize(coll, 2) = Join(Array("[" _
+                                               , "  []," _
+                                               , "  []," _
+                                               , "  1," _
+                                               , "  2," _
+                                               , "  3," _
+                                               , "  [" _
+                                               , "    []" _
+                                               , "  ]" _
+                                               , "]") _
+                                         , vbNewLine)
+    Debug.Assert Serialize(coll, 4) = Join(Array("[" _
+                                               , "    []," _
+                                               , "    []," _
+                                               , "    1," _
+                                               , "    2," _
+                                               , "    3," _
+                                               , "    [" _
+                                               , "        []" _
+                                               , "    ]" _
+                                               , "]" _
+                                         ), vbNewLine)
+    '
+    s = "{""k"":{""1"":[[],[],1,null,"""",3,[[[]]]],""3"":{""1"":4,""3"":{}}}}"
+    Debug.Assert Serialize(Parse(s).Value, 2) = Join(Array("{" _
+                                                        , "  ""k"": {" _
+                                                        , "    ""1"": [" _
+                                                        , "      []," _
+                                                        , "      []," _
+                                                        , "      1," _
+                                                        , "      null," _
+                                                        , "      """"," _
+                                                        , "      3," _
+                                                        , "      [" _
+                                                        , "        [" _
+                                                        , "          []" _
+                                                        , "        ]" _
+                                                        , "      ]" _
+                                                        , "    ]," _
+                                                        , "    ""3"": {" _
+                                                        , "      ""1"": 4," _
+                                                        , "      ""3"": {}" _
+                                                        , "    }" _
+                                                        , "  }" _
+                                                        , "}" _
+                                                   ), vbNewLine)
+    '
+    s = "[{""_id"":""67ef9f1f7469f832882a1e2c"",""friends"":[{""id"":0,""name"":""Wendi Perkins""}" _
+      & "],""favoriteFruit"":""banana""}]"
+    Debug.Assert Serialize(Parse(s).Value, 1) = Join(Array("[" _
+                                                         , " {" _
+                                                         , "  ""_id"": ""67ef9f1f7469f832882a1e2c""," _
+                                                         , "  ""friends"": [" _
+                                                         , "   {" _
+                                                         , "    ""id"": 0," _
+                                                         , "    ""name"": ""Wendi Perkins""" _
+                                                         , "   }" _
+                                                         , "  ]," _
+                                                         , "  ""favoriteFruit"": ""banana""" _
+                                                         , " }" _
+                                                         , "]" _
+                                                    ), vbNewLine)
+    Debug.Assert Serialize(Parse(s).Value, 0) = s
+End Sub
+
+Private Sub TestSerializeEscaped()
+    Debug.Assert Serialize("\") = """\\"""
+    Debug.Assert Serialize("/") = """/"""
+    Debug.Assert Serialize("""") = """\"""""
+    '
+    Dim i As Long
+    Dim res As String
+    '
+    For i = 0 To 31 'Control Characters
+        res = Serialize(Chr$(i))
+        Select Case i
+            Case Asc(vbBack):     Debug.Assert res = """\b"""
+            Case Asc(vbTab):      Debug.Assert res = """\t"""
+            Case Asc(vbCr):       Debug.Assert res = """\r"""
+            Case Asc(vbFormFeed): Debug.Assert res = """\f"""
+            Case Asc(vbLf):       Debug.Assert res = """\n"""
+            Case Is < 16:         Debug.Assert res = """\u000" & Hex(i) & """"
+            Case Else:            Debug.Assert res = """\u00" & Hex(i) & """"
+        End Select
+    Next i
+    '
+    Dim s As String
+    '
+    s = ChrW(2353) & ChrW(235) & ChrW(-23533) & ChrW(23533)
+    Debug.Assert Serialize(s, escapeNonASCII:=True) = """\u0931\u00EB\uA413\u5BED"""
+    Debug.Assert Serialize(s, escapeNonASCII:=False) = """" & s & """"
+End Sub
+
+Private Sub TestSerializeMisc()
+    Debug.Assert Serialize(Array(Empty, Nothing, Err _
+                               , PosInf, NegInf, SNaN, QNaN)) = "[null,null,null,null,null,null,null]"
+End Sub
+
+Private Sub TestSerializeSortKeys()
+    Dim d As Dictionary
+    Set d = Dictionary("d", 1, 7, 2, "a", 3, "b", 4, New Collection, 5)
+    '
+    Debug.Assert Serialize(d) = "{""d"":1,""a"":3,""b"":4}"
+    Debug.Assert Serialize(d, sortKeys:=True) = "{""a"":3,""b"":4,""d"":1}"
+    Debug.Assert Serialize(d, sortKeys:=True, forceKeysToText:=True) = "{""7"":2,""a"":3,""b"":4,""d"":1}"
+End Sub
+    
+Private Sub TestSerializeNonTextKeys()
+    Dim s As String
+    Dim dict As Dictionary
+    '
+    s = "{""k"":{""1"":[[],[],1,2,3,[[[]]]],""3"":{""1"":4,""3"":{}}}}"
+    Set dict = Parse(s).Value
+    Debug.Assert Serialize(dict) = s
+    '
+    dict("k").Key("1") = 1
+    Debug.Assert Serialize(dict, forceKeysToText:=True) = s
+    Debug.Assert Serialize(dict, forceKeysToText:=False) = "{""k"":{""3"":{""1"":4,""3"":{}}}}"
+    '
+    dict("k").Key("3") = 3
+    Debug.Assert Serialize(dict, forceKeysToText:=True) = s
+    Debug.Assert Serialize(dict, forceKeysToText:=False) = "{""k"":{}}"
+    Debug.Assert Serialize(dict, failIfNonTextKeys:=True) = vbNullString
+    Debug.Assert Serialize(dict, forceKeysToText:=True, failIfNonTextKeys:=True) = s
+    '
+    Set dict = Dictionary(#4/4/2025#, 1, False, 2, True, 3, Null, 4, Nothing, 5, Collection(1, 2, 3), 6)
+    Debug.Assert Serialize(dict) = "{}"
+    Debug.Assert Serialize(dict, forceKeysToText:=True) = "{""2025-04-04 00:00:00"":1,""False"":2,""True"":3}"
+    Debug.Assert Serialize(dict, forceKeysToText:=True, formatDateISO:=True) = "{""2025-04-04T00:00:00Z"":1,""False"":2,""True"":3}"
+    Debug.Assert Serialize(dict, failIfNonTextKeys:=True) = vbNullString
+    Debug.Assert Serialize(dict, forceKeysToText:=True, failIfNonTextKeys:=True) = vbNullString
+End Sub
+    
+Private Sub TestSerializeCircularRef()
+    Dim s As String
+    Dim dict As Dictionary
+    '
+    s = "{""k"":{""1"":[[],[],1,2,3,[[[]]]],""3"":{""1"":4,""3"":{}}}}"
+    Set dict = Parse(s).Value
+    Debug.Assert Serialize(dict) = s
+    '
+    Set dict("k") = dict
+    Debug.Assert Serialize(dict) = "{""k"":null}"
+    '
+    Set dict = Parse(s).Value
+    Set dict("k")("1") = dict
+    Debug.Assert Serialize(dict) = "{""k"":{""1"":null,""3"":{""1"":4,""3"":{}}}}"
+    Set dict("k")("3") = dict
+    Debug.Assert Serialize(dict) = "{""k"":{""1"":null,""3"":null}}"
+    dict.Add "n", dict("k")
+    Debug.Assert Serialize(dict) = "{""k"":{""1"":null,""3"":null},""n"":{""1"":null,""3"":null}}"
+    Set dict("k")("1") = New Collection
+    dict.Remove "n"
+    Debug.Assert Serialize(dict) = "{""k"":{""1"":[],""3"":null}}"
+    Set dict("k")("3") = dict("k")("1")
+    Debug.Assert Serialize(dict) = "{""k"":{""1"":[],""3"":[]}}"
+    dict("k")("1").Add dict("k")("1")
+    Debug.Assert Serialize(dict) = "{""k"":{""1"":[null],""3"":[null]}}"
+    dict("k")("1").Add dict
+    Debug.Assert Serialize(dict) = "{""k"":{""1"":[null,null],""3"":[null,null]}}"
+    '
+    Debug.Assert Serialize(dict, failIfCircularRef:=True) = vbNullString
+    Serialize dict, failIfCircularRef:=True, outError:=s
+    Debug.Assert LenB(s) > 0 'outError = "Circular reference detected"
+End Sub
+    
+Private Sub TestSerializeCodePage()
+    Dim s As String
+    Dim dict As Dictionary
+    '
+    s = "{""k"":{""1"":[[],[],1,2,3,[[[]]]],""3"":{""1"":4,""3"":{}}}}"
+    Set dict = Parse(s).Value
+    Debug.Assert Serialize(dict) = s
+    Debug.Assert Serialize(dict, jpCode:=jpCodeUTF8) = StrConv(s, vbFromUnicode)
+    '
+    Debug.Assert Serialize(ChrW$(&HFFFD)) = """\uFFFD"""
+    Debug.Assert Serialize(ChrW$(&HFFFD), jpCode:=jpCodeUTF8) = StrConv("""\uFFFD""", vbFromUnicode)
+    '
+    Debug.Assert Serialize(ChrW$(&HFF)) = """\u00FF"""
+    Debug.Assert Serialize(ChrW$(&HFF), jpCode:=jpCodeUTF8) = StrConv("""\u00FF""", vbFromUnicode)
+    Debug.Assert Serialize(ChrW$(&HFF), escapeNonASCII:=False) = """" & ChrW$(&HFF) & """"
+    Debug.Assert Serialize(ChrW$(&HFF), escapeNonASCII:=False, jpCode:=jpCodeUTF8) = ChrW$(&HC322) & ChrW$(&H22BF) '0x22 being "
+    '
+    'Escaped lone surrogates
+    Debug.Assert Serialize(ChrW$(&HDADA)) = """\uDADA""" 'Lone 1st surrogate
+    Debug.Assert Serialize(ChrW$(&HDFAA)) = """\uDFAA""" 'Lone 2nd surrogate
+    Debug.Assert Serialize(ChrW$(&HD888) & ChrW$(&H1234)) = """\uD888\u1234"""
+    '
+    'failIfInvalidCharacter does nothing if no conversion
+    Debug.Assert Serialize(ChrW$(&HDADA), failIfInvalidCharacter:=True) = """\uDADA"""
+    Debug.Assert Serialize(ChrW$(&HDFAA), failIfInvalidCharacter:=True) = """\uDFAA"""
+    Debug.Assert Serialize(ChrW$(&HD888) & ChrW$(&H1234), failIfInvalidCharacter:=True) = """\uD888\u1234"""
+    '
+    'failIfInvalidCharacter does nothing even after conversion because nonAscii is escaped
+    Debug.Assert Serialize(ChrW$(&HDADA), failIfInvalidCharacter:=True, jpCode:=jpCodeUTF8) = StrConv("""\uDADA""", vbFromUnicode)
+    Debug.Assert Serialize(ChrW$(&HDFAA), failIfInvalidCharacter:=True, jpCode:=jpCodeUTF8) = StrConv("""\uDFAA""", vbFromUnicode)
+    Debug.Assert Serialize(ChrW$(&HD888) & ChrW$(&H1234), failIfInvalidCharacter:=True, jpCode:=jpCodeUTF8) = StrConv("""\uD888\u1234""", vbFromUnicode)
+    '
+    'Unescaped lone surrogates - failIfInvalidCharacter does nothing if no conversion
+    Debug.Assert Serialize(ChrW$(&HDADA), escapeNonASCII:=False, failIfInvalidCharacter:=True) = """" & ChrW$(&HDADA) & """"
+    Debug.Assert Serialize(ChrW$(&HDFAA), escapeNonASCII:=False, failIfInvalidCharacter:=True) = """" & ChrW$(&HDFAA) & """"
+    Debug.Assert Serialize(ChrW$(&HD888) & ChrW$(&H1234), escapeNonASCII:=False, failIfInvalidCharacter:=True) = """" & ChrW$(&HD888) & ChrW$(&H1234) & """"
+    '
+    'Fails
+    Debug.Assert Serialize(ChrW$(&HDADA), escapeNonASCII:=False, failIfInvalidCharacter:=True, jpCode:=jpCodeUTF8) = vbNullString
+    Debug.Assert Serialize(ChrW$(&HDFAA), escapeNonASCII:=False, failIfInvalidCharacter:=True, jpCode:=jpCodeUTF8) = vbNullString
+    Debug.Assert Serialize(ChrW$(&HD888) & ChrW$(&H1234), escapeNonASCII:=False, failIfInvalidCharacter:=True, jpCode:=jpCodeUTF8) = vbNullString
+    '
+    'Uses replacement 0xFFFD
+    Debug.Assert Serialize(ChrW$(&HDADA), escapeNonASCII:=False, jpCode:=jpCodeUTF8) = ChrW$(&HEF22) & ChrW$(&HBDBF) & ChrB(&H22) '0x22 being "
+    Debug.Assert Serialize(ChrW$(&HDFAA), escapeNonASCII:=False, jpCode:=jpCodeUTF8) = ChrW$(&HEF22) & ChrW$(&HBDBF) & ChrB(&H22)
+    Debug.Assert Serialize(ChrW$(&HD888) & ChrW$(&H1234), escapeNonASCII:=False, jpCode:=jpCodeUTF8) = ChrW$(&HEF22) & ChrW$(&HBDBF) & ChrW$(&H88E1) & ChrW$(&H22B4)
 End Sub
 
 '*******************************************************************************
