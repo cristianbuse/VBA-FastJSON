@@ -1,4 +1,4 @@
-# VBA-FastJSON
+# VBA-FastJSON [![Mentioned in Awesome VBA](https://awesome.re/mentioned-badge.svg)](https://github.com/sancarn/awesome-vba)
 Fast Native JSON Parser / Serializer for VBA. Compatible with Windows and Mac.
 
 [RFC 8259](https://datatracker.ietf.org/doc/html/rfc8259) compliant.
@@ -23,7 +23,7 @@ For more details see [Parser documentation](https://github.com/cristianbuse/VBA-
 
 ```Parse``` method: 
 - [RFC 8259](https://datatracker.ietf.org/doc/html/rfc8259) compliant
-- non-recursive implementation - avoids 'Out of stack space' for deep nesting
+- memory-efficient, non-recursive implementation - avoids 'Out of stack space' for deep nesting
 - fast, for a native implementation 
 - automatic encoding detection and conversion. Supports: ```UTF8```, ```UTF16LE```, ```UTF16BE```, ```UTF32LE```, ```UTF32BE```
 - various extensions via the available parameters - see [Parser extensions](https://github.com/cristianbuse/VBA-FastJSON/blob/master/Documentation.md#extensions)
@@ -36,7 +36,7 @@ For more details see [Parser documentation](https://github.com/cristianbuse/VBA-
 For more details see [Serializer documentation](https://github.com/cristianbuse/VBA-FastJSON/blob/master/Documentation.md#serializer).
 
 ```Serialize``` method: 
-- non-recursive implementation - avoids 'Out of stack space' for deep nesting
+- memory-efficient, non-recursive implementation - avoids 'Out of stack space' for deep nesting
 - fast, for a native implementation
 - supports beautify / minify via the ```indentSpaces``` argument
 - by default, cannot fail - see available options via the function parameters
@@ -78,4 +78,23 @@ With Parse(jsonText, jpCodeUTF8)
         Exit Sub
     End If
 End With
+'
+Dim jsonData As New Dictionary
+Dim json As String
+'
+jsonData.Add "d", 1
+jsonData.Add 7, 2
+jsonData.Add "a", 3
+jsonData.Add "b", 4
+'
+json = Serialize(jsonData)                                        '{"d":1,"a":3,"b":4}
+json = Serialize(jsonData, sortKeys:=True)                        '{"a":3,"b":4,"d":1}
+json = Serialize(jsonData, sortKeys:=True, forceKeysToText:=True) '{"7":2,"a":3,"b":4,"d":1}
+'
+json = Serialize(jsonData, indentSpaces:=2)                       '{
+                                                                  '  "d": 1,
+                                                                  '  "a": 3,
+                                                                  '  "b": 4
+                                                                  '}
+json = Serialize(jsonData, jpCode:=jpCodeUTF8)
 ```
