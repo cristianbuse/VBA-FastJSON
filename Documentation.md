@@ -12,14 +12,20 @@
 - [Serializer](#serializer)
   - [Options](#serializer-options)
     - [Minify / Beautify](#minify--beautify)
+    - [Non-ASCII escape](#non-ascii-escape)
+    - [Sort keys](#sort-keys)
+    - [Non-Text keys](#non-text-keys)
+    - [Circular references](#circular-references)
+    - [Date format](#date-format)
+    - [Encoding](#encoding)
 ## Parser
 
 ```Parse``` method: 
 - [RFC 8259](https://datatracker.ietf.org/doc/html/rfc8259) compliant
-- non-recursive implementation - avoids 'Out of stack space' for deep nesting
+- memory-efficient, non-recursive implementation - avoids 'Out of stack space' for deep nesting
 - fast, for a native implementation 
 - automatic encoding detection and conversion. Supports: ```UTF8```, ```UTF16LE```, ```UTF16BE```, ```UTF32LE```, ```UTF32BE```
-- various extensions via the available parameters - see [Parser extensions](https://github.com/cristianbuse/VBA-FastJSON/blob/master/Documentation.md#extensions)
+- various extensions via the available parameters - see below
 - json input can be a ```String``` or a one-dimensional array of ```Byte()``` or ```Integer()``` type
 - input is parsed in place without making any copies
 
@@ -161,7 +167,43 @@ This option is in place to avoid application crashes and allow full user control
 
 ## Serializer
 
-To be continued...
+```Serialize``` method:
+- memory-efficient, non-recursive implementation - avoids 'Out of stack space' for deep nesting
+- fast, for a native implementation
+- supports beautify / minify via the ```indentSpaces``` argument - see below
+- by default, cannot fail - see below
+- returns a ```String``` json
+- detects circular object references
+- can sort keys
+- supports multi-dimensional arrays, row-wise
+- supports encoding: ```UTF8```, ```UTF16LE``` (default), ```UTF16BE```, ```UTF32LE```, ```UTF32BE```
+
+Does not throw errors. It can only fail in the following scenarios:
+1. A non-text key is found and ```failIfNonTextKeys``` is set to ```True``` (default is ```False```)
+2. A circular reference is found and ```failIfCircularRef``` is set to ```True``` (default is ```False```)
+3. Encoding failed from ```UTF16LE``` to unsupported code page (default is ```UTF16LE``` i.e. no conversion)
+4. Encoding failed from ```UTF16LE``` to supported code page because invalid character was found while ```failIfInvalidCharacter``` is set to ```True``` (default page code is ```UTF16LE``` i.e. no conversion and default ```failIfInvalidCharacter``` is ```False```)
+
+On failure, it returns a null ```String``` and an ```Optional ByRef outError As String```.
+
+By default, returns ```UTF16LE``` json string - see ```jpCode``` below.
+
+Input data can be any of the following:
+- Primitive (```String```, Number, ```Boolean```, ```Null```)
+- Array (any number of dimensions) or ```Collection```
+- ```Dictionary```
+- Any class that has a ```ToDictionary() As Dictionary``` method (```Property Get``` or ```Function```). Please see [discussion](https://github.com/cristianbuse/VBA-FastJSON/discussions/2). The method is called via late-binding (```IDispatch::Invoke```)
+- ```vbError``` or ```vbDate``` are simply converted to ```vbString```
+
+Please not input ```String```(s) must be ```UTF16LE``` regardless if nested or not.
+
+Invalid data types (direct or nested) are replaced with ```Null```:
+- ```Empty```
+- User Defined Type (UDT) - note this is rare for daily VBA use because native UDTs cannot be coerced to ```Variant```
+- ```Nothing``` or an interface not implementing a ```ToDictionary``` method - see 
+- Uninitialized Arrays
+- Special ```Single```/```Double``` values: +Inf, -Inf, SNaN, QNaN
+- Circular references (by default - see below)
 
 ### Serializer Options
 
@@ -179,7 +221,87 @@ Public Function Serialize(ByRef jsonData As Variant _
                         , Optional ByVal failIfInvalidCharacter As Boolean = False _
                         , Optional ByRef outError As String) As String
 ```
-
 #### Minify / Beautify
 
-To be continued...
+By default (```indentSpaces = 0```), there is no indentation i.e. the default behaviour is to minify the json output text. Example:
+```VBA
+Serialize(Parse("{""d"":1,""a"":3,""b"":4}").Value)
+```
+will return ```{"d":1,"a":3,"b":4}```.
+
+To beautify, ```indentSpaces``` can be set to a value from 1 to 16 (anything over is capped). Example:
+```VBA
+Serialize(Parse("{""d"":1,""a"":3,""b"":4}").Value, indentSpaces:=2)
+```
+will return
+```
+{
+  "d": 1,
+  "a": 3,
+  "b": 4
+}
+```
+
+#### Non-ASCII escape
+
+By default (```escapeNonASCII = True```), non-ASCII characters (codes outside 0-127) will be escaped using the ```\u0000``` notation. Example:
+```VBA
+Serialize(ChrW(2353) & ChrW(235) & ChrW(-23533) & ChrW(23533))
+```
+will return ```"\u0931\u00EB\uA413\u5BED"```.
+
+Please note that character ```DEL``` (code 127) is also escaped by default even though it is ASCII. This is because it is considered a non-printable character. 
+
+If ```escapeNonASCII = False``` then non-ASCII characters are not escaped.
+
+#### Sort Keys
+
+By default (```sortKeys = False```), this option does nothing.
+
+If ```sortKeys = True```, then dictionary keys will be sorted ascending. This can be useful for debugging or comparing JSON data.
+
+#### Non-Text keys
+
+The combination of ```forceKeysToText``` and ```failIfNonTextKeys``` provides good control over what happens if non-text dictionary keys are found.
+
+| forceKeysToText | failIfNonTextKeys | Outcome |
+|-----------------|-------------------|---------|
+| ```False```     | ```False```       | DEFAULT. Any non-text keys are simply ignored / skipped |
+| ```False```     | ```True```        | Function fails if a non-text key is found |
+| ```True```      | ```False```       | All keys of ```vbError```, ```vbDate``` or number data types are converted to ```String```. Keys that cannot be converted are ignored / skipped e.g. UDT |
+| ```True```      | ```True```        | All keys of ```vbError```, ```vbDate``` or number data types are converted to ```String```. Function only fails if there are non-text keys that cannot be converted e.g. UDT.  In this scenario, the function returns ```vbNullString``` while also returning an appropriate error message via the ```Optional ByRef outError As String``` |
+
+#### Circular references
+
+By default (```failIfCircularRef = False```), when an object instance that references itself is found, it is replaced with ```Null```. Example:
+```VBA
+Dim dict As New Dictionary
+dict.Add "k", dict
+Debug.Print Serialize(dict)
+```
+will print ```{"k":null}``` to the ```Immediate``` window.
+
+If ```failIfCircularRef = True``` and a circular reference is found (direct or nested) then the function fails and it returns ```vbNullString``` while also returning an appropriate error message via the ```Optional ByRef outError As String```.
+
+#### Date format
+
+By default (```formatDateISO = False```), any ```vbDate``` found is converted to ```String``` using the ```"yyyy-mm-dd hh:nn:ss"``` format.
+
+If ```formatDateISO = True``` then an extended ISO format is used: ```yyyy-mm-ddThh:nn:ss.sssZ```.
+
+Examples:
+```VBA
+Serialize(#4/4/2025#)                                        '=> "2025-04-04 00:00:00"
+Serialize(#4/4/2025#, formatDateISO:=True)                   '=> "2025-04-04T00:00:00Z"
+Serialize(#4/4/2025# + 250.631 / 86400, formatDateISO:=True) '=> "2025-04-04T00:04:10.631Z"
+```
+
+#### Encoding
+
+By default, this method returns a ```UTF16LE``` string and does not fail. In this scenario, ```failIfInvalidCharacter``` argument does nothing.
+
+However, the ```jpCode``` argument allows ```UTF8```, ```UTF16BE``` and ```UTF32``` (```LE``` and ```BE``` on Mac only). In this cases, a conversion is performed and the function can fail if the conversion is not supported.
+
+By default (```failIfInvalidCharacter = False```), replaces each illegal character with ```U+FFFD``` (encoded for the target code page).
+
+If ```failIfInvalidCharacter = True``` then the function fails if an illegal character is found. For example, a long surrogate like ```Serialize(ChrW$(&HDADA), escapeNonASCII:=False, failIfInvalidCharacter:=True, jpCode:=jpCodeUTF8)``` will fail. On failure, function returns ```vbNullString``` while also returning an appropriate error message via the ```Optional ByRef outError As String```.
