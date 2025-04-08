@@ -1313,6 +1313,7 @@ Public Function Serialize(ByRef jsonData As Variant _
     Static bounds As SABoundAccessor
     Static infOrNaN(vbSingle To vbDouble) As InfOrNaNInfo
     Static numChar(ccSpace To ccBacktick) As Byte
+    Static vtblScriptPtr As LongPtr
     Dim fv As FakeVariant
     Dim colonLen As Long
     Dim commaLen As Long
@@ -1329,6 +1330,7 @@ Public Function Serialize(ByRef jsonData As Variant _
     Dim buff As TextBuffer
     Dim i As Long
     Dim j As Long
+    Dim obj As Object
     '
     If indentSpaces > 0 Then
         beautify = True
@@ -1359,6 +1361,16 @@ Public Function Serialize(ByRef jsonData As Variant _
         InitEscaped escaped, map
         InitNumChar numChar
         InitInfOrNaN infOrNaN
+        '
+        On Error Resume Next 'In case scrun.dll not available
+        Set obj = CreateObject("Scripting.Dictionary")
+        On Error GoTo 0
+        '
+        If Not obj Is Nothing Then
+            ptrs.sa.pvData = ObjPtr(obj)
+            ptrs.sa.rgsabound0.cElements = 1
+            vtblScriptPtr = ptrs.arr(0)
+        End If
     End If
     '
     commaLen = 1 + nLineLen
@@ -1404,18 +1416,27 @@ Public Function Serialize(ByRef jsonData As Variant _
             Dim coll As Collection
             Dim dict As Dictionary
             Dim isDict As Boolean
+            Dim isScripting As Boolean: isScripting = False
             '
             isDict = (TypeOf vars.arr(0) Is Dictionary)
             If isDict Then
                 Set dict = vars.arr(0)
             ElseIf TypeOf vars.arr(0) Is Collection Then
                 Set coll = vars.arr(0)
-            Else 'Try 'ToDictionary' method via late-binding / IDispatch::Invoke
-                On Error Resume Next
-                Set dict = Nothing
-                Set dict = vars.arr(0).ToDictionary()
-                On Error GoTo 0
-                If dict Is Nothing Then GoTo InsertNull
+            Else
+                'Try 'Scripting.Dictionary' via late-binding
+                ptrs.sa.pvData = ObjPtr(vars.arr(0))
+                isScripting = (ptrs.arr(0) = vtblScriptPtr)
+                '
+                If isScripting Then
+                    Set obj = vars.arr(0)
+                Else 'Try 'ToDictionary' via late-binding
+                    On Error Resume Next
+                    Set dict = Nothing
+                    Set dict = vars.arr(0).ToDictionary()
+                    On Error GoTo 0
+                    If dict Is Nothing Then GoTo InsertNull
+                End If
                 isDict = True
             End If
             '
@@ -1428,12 +1449,14 @@ Public Function Serialize(ByRef jsonData As Variant _
             With levels(depth)
                 .isDict = isDict
                 If isDict Then
-                    .ub = dict.Count - 1
+                    If isScripting Then .ub = obj.Count - 1 _
+                                   Else .ub = dict.Count - 1
                     If .ub = -1 Then
                         ep = epDict
                         .epClose = epFalse
                     Else
-                        .arrKeys = dict.Keys()
+                        If isScripting Then .arrKeys = obj.Keys() _
+                                       Else .arrKeys = dict.Keys()
                         '
                         Dim vtKey As VbVarType
                         Dim lastFound As Long: lastFound = -1
@@ -1507,7 +1530,8 @@ Public Function Serialize(ByRef jsonData As Variant _
                             ep = epLBrace
                             .epClose = epRBrace
                             .iUnkPtr = iPtr
-                            .arrItems = dict.Items()
+                            If isScripting Then .arrItems = obj.Items() _
+                                           Else .arrItems = dict.Items()
                             If sortKeys Then
                                 QuickSortKeys .arrKeys, .arrItems, 0, .ub
                             End If
