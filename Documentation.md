@@ -192,7 +192,7 @@ Input data can be any of the following:
 - Primitive (```String```, Number, ```Boolean```, ```Null```)
 - Array (any number of dimensions) or ```Collection```
 - ```Dictionary```
-- Any class that has a ```ToDictionary() As Dictionary``` method (```Property Get``` or ```Function```). Please see [discussion](https://github.com/cristianbuse/VBA-FastJSON/discussions/2). The method is called via late-binding (```IDispatch::Invoke```)
+- Any class that has a ```ToSerializable() As Variant``` method (```Property Get``` or ```Function```). Please see [discussion](https://github.com/cristianbuse/VBA-FastJSON/discussions/2) and [issue](https://github.com/cristianbuse/VBA-FastJSON/issues/6). The method is called via late-binding (```IDispatch::Invoke```)
 - ```vbError``` or ```vbDate``` are simply converted to ```vbString```
 
 Please not input ```String```(s) must be ```UTF16LE``` regardless if nested or not.

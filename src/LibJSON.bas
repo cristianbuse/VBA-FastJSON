@@ -262,6 +262,7 @@ Private Type SerializeContextInfo
     arrKeys() As Variant
     arrItems() As Variant
     isDict As Boolean
+    isSerializable  As Boolean
     incIndex As Long
     currIndex As Long
     ub As Long
@@ -1239,7 +1240,7 @@ End Function
 ' - Invalid data types (direct or nested) are replaced with Null:
 '     - Empty
 '     - User Defined Type
-'     - Nothing or an interface not implementing 'ToDictionary'
+'     - Nothing or an interface not implementing 'ToSerializable'
 '     - Uninitialized Array
 '     - Special Single/Double values: +Inf, -Inf, SNaN, QNaN
 '     - Circular references (by default - see below)
@@ -1248,7 +1249,7 @@ End Function
 '     - primitive (String, Number, Boolean, Null)
 '     - Array or Collection
 '     - Dictionary
-'     - Any class that implements a 'ToDictionary() As Dictionary' method
+'     - Any class that implements a 'ToSerializable() As Variant' method
 ' * indentSpaces:
 '     - Default is 0 - no indentation
 '     - For positive values, indenting will be added up to 'maxIndent' (16)
@@ -1331,6 +1332,7 @@ Public Function Serialize(ByRef jsonData As Variant _
     Dim i As Long
     Dim j As Long
     Dim obj As Object
+    Dim v As Variant
     '
     If indentSpaces > 0 Then
         beautify = True
@@ -1395,7 +1397,7 @@ Public Function Serialize(ByRef jsonData As Variant _
     '
     Do
         Dim vt As VbVarType: vt = vars.vt(0)
-        If vt = vbObject Or vt = vbDataObject Then
+        Do While vt = vbObject Or vt = vbDataObject
             If vars.arr(0) Is Nothing Then GoTo InsertNull
             '
             Dim iUnk As IUnknown: Set iUnk = vars.arr(0)
@@ -1416,7 +1418,8 @@ Public Function Serialize(ByRef jsonData As Variant _
             Dim coll As Collection
             Dim dict As Dictionary
             Dim isDict As Boolean
-            Dim isScripting As Boolean: isScripting = False
+            Dim isSerializable As Boolean: isSerializable = False
+            Dim isScripting As Boolean:    isScripting = False
             '
             isDict = (TypeOf vars.arr(0) Is Dictionary)
             If isDict Then
@@ -1430,14 +1433,14 @@ Public Function Serialize(ByRef jsonData As Variant _
                 '
                 If isScripting Then
                     Set obj = vars.arr(0)
-                Else 'Try 'ToDictionary' via late-binding
+                    isDict = True
+                Else 'Try 'ToSerializable' via late-binding
                     On Error Resume Next
-                    Set dict = Nothing
-                    Set dict = vars.arr(0).ToDictionary()
+                    Assign v, vars.arr(0).ToSerializable
+                    isSerializable = (Err.Number = 0)
                     On Error GoTo 0
-                    If dict Is Nothing Then GoTo InsertNull
+                    If Not isSerializable Then GoTo InsertNull
                 End If
-                isDict = True
             End If
             '
             depth = depth + 1
@@ -1540,6 +1543,12 @@ Public Function Serialize(ByRef jsonData As Variant _
                             vars.sa.pvData = .firstKeyPtr
                         End If
                     End If
+                ElseIf isSerializable Then
+                    .ub = -1
+                    .epClose = epFalse
+                    .iUnkPtr = iPtr
+                    vars.sa.pvData = VarPtr(v)
+                    vt = vars.vt(0)
                 Else
                     .ub = coll.Count - 1
                     If .ub < 0 Then
@@ -1566,6 +1575,12 @@ Public Function Serialize(ByRef jsonData As Variant _
                 End If
                 .incIndex = 1
             End With
+            If Not isSerializable Then
+                vt = vbObject
+                Exit Do
+            End If
+        Loop
+        If vt = vbObject Then 'Do nothing - already handled
         ElseIf vt >= vbArray Then
             ptrs.sa.pvData = vars.sa.pvData + pOffset
             If ptrs.arr(0) = NullPtr Then GoTo InsertNull 'Uninitialized
@@ -1787,7 +1802,6 @@ InsertNull: ep = epNull
             If .currIndex = 0 Then
                 If beautify And (.incIndex > 0) Then
                     currentIndent = currentIndent + indentSpaces
-
                     If currentIndent > spCount Then
                         spCount = currentIndent * 2
                         spaces = Space$(spCount)
@@ -1832,6 +1846,10 @@ Clean:
     ptrs.sa.rgsabound0.cElements = 0: ptrs.sa.pvData = NullPtr
     vars.sa.rgsabound0.cElements = 0: vars.sa.pvData = NullPtr
 End Function
+
+Private Sub Assign(ByRef varLeft As Variant, ByRef varRight As Variant)
+    If IsObject(varRight) Then Set varLeft = varRight Else varLeft = varRight
+End Sub
 
 Private Sub InitEncoded(ByRef encoded() As EncodedString)
     encoded(epTrue).s = "true"
