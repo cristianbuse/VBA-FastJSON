@@ -1301,6 +1301,7 @@ Public Function Serialize(ByRef jsonData As Variant _
     Const dateFStr As String = "\""yyyy-mm-dd hh:nn:ss\"""
     Const maxBit As Long = &H40000000
     Const maxBuf As Long = &H7FFFFFFF
+    Const errMissing As Long = &H80020004
     Const initLevels As Long = 16
     Const maxIndent As Long = 16
     Const pOffset As Long = 8
@@ -1486,9 +1487,22 @@ Public Function Serialize(ByRef jsonData As Variant _
                                         .arrKeys(i) = Format$(.arrKeys(i), dateF)
                                     End If
                                 ElseIf vtKey = vbError Then
-                                    ints.sa.pvData = VarPtr(.arrKeys(i)) + pOffset
-                                    j = (ints.arr(0) + &H10000) And &HFFFF&
-                                    .arrKeys(i) = "Error " & CStr(j)
+                                    ptrs.sa.pvData = VarPtr(.arrKeys(i)) + pOffset
+                                    #If x64 Then
+                                        j = CLng(ptrs.arr(0) And &H7FFFFFFF) Or &H80000000
+                                    #Else
+                                        j = ptrs.arr(0)
+                                    #End If
+                                    If j = errMissing Then
+                                        If failIfNonTextKeys Then
+                                            outError = "Invalid key data type"
+                                            GoTo Clean
+                                        Else
+                                            .arrKeys(i) = "Missing"
+                                        End If
+                                    Else
+                                        .arrKeys(i) = "Error " & CStr(j And &HFFFF&)
+                                    End If
                                 ElseIf vtKey = vbBoolean Then
                                     .arrKeys(i) = encoded(CLng(.arrKeys(i))).s
                                 ElseIf (vtKey And &H14) <> &H4 Then 'Ints
@@ -1719,9 +1733,14 @@ InsertNull: ep = epNull
                 End If
                 ints.sa.rgsabound0.cElements = 1
             ElseIf vt = vbError Then
-                ints.sa.pvData = vars.sa.pvData + pOffset
-                i = (ints.arr(0) + &H10000) And &HFFFF&
-                encoded(epText).s = """Error " & CStr(i) & """"
+                ptrs.sa.pvData = vars.sa.pvData + pOffset
+                #If x64 Then
+                    i = CLng(ptrs.arr(0) And &H7FFFFFFF) Or &H80000000
+                #Else
+                    i = ptrs.arr(0)
+                #End If
+                If i = errMissing Then GoTo InsertNull
+                encoded(epText).s = """Error " & CStr(i And &HFFFF&) & """"
                 encoded(epText).sLen = Len(encoded(epText).s)
             ElseIf vt = vbDate Then 'Quotes already included in formatting
                 If formatDateISO Then
