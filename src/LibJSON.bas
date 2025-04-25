@@ -1396,7 +1396,7 @@ Public Function Serialize(ByRef jsonData As Variant _
     End If
     '
     Do
-        Dim vt As VbVarType: vt = vars.vt(0)
+        Dim vt As VbVarType: vt = vars.vt(0) And &H3FFF& 'Remove VT_BYREF
         Do While vt = vbObject Or vt = vbDataObject
             If vars.arr(0) Is Nothing Then GoTo InsertNull
             '
