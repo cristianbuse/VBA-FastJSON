@@ -484,8 +484,8 @@ Private Sub TestParseNumberValidLargeExponent()
     Debug.Assert Parse("[-922337203685477.5807]").Value(1) = -922337203685477.5807@
     Debug.Assert Parse("[-79228162514264337593543950335]").Value(1) = CDec("-79228162514264337593543950335")
     Debug.Assert Parse("[79228162514264337593543950335]").Value(1) = CDec("79228162514264337593543950335")
-    Debug.Assert Parse("[-7.9228162514264337593543950335]").Value(1) = CDec("-7.9228162514264337593543950335")
-    Debug.Assert Parse("[7.9228162514264337593543950335]").Value(1) = CDec("7.9228162514264337593543950335")
+    Debug.Assert Parse("[-7.9228162514264337593543950335]").Value(1) = CDec(ToLocaleDot("-7.9228162514264337593543950335"))
+    Debug.Assert Parse("[7.9228162514264337593543950335]").Value(1) = CDec(ToLocaleDot("7.9228162514264337593543950335"))
 #Else
     Debug.Assert Parse("-0.000000000000000000000000000000000000000000000000000001").Value = -1E-54
     Debug.Assert Parse("[-922337203685477]").Value(1) = -922337203685477@
@@ -1256,4 +1256,8 @@ Private Function BytesToString(ParamArray bytes() As Variant) As String
         b(i) = bytes(i)
     Next i
     BytesToString = b
+End Function
+Private Function ToLocaleDot(ByVal s As String) As String
+    Dim chDot As String: chDot = Mid$(CStr(1.1), 2, 1)
+    ToLocaleDot = Replace(s, ".", chDot)
 End Function
