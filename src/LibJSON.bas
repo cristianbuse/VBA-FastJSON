@@ -344,7 +344,7 @@ End Type
 ' - Returns a convenient custom Type and it's .Value can be an object or not
 ' - Supports UTF8, UTF16 (LE and BE) and UTF32 (LE and BE on Mac only)
 ' - Returns UTF16LE texts only
-' - Accepts Default Class Members so no need to check for IsObject
+' - Accepts Default Class Members
 ' - Numbers are rounded to the nearest Double and if possible Decimal is used
 'Parameters:
 ' * jsonText: String or Byte / Integer 1D array
@@ -396,7 +396,9 @@ Public Function Parse(ByRef jsonText As Variant _
     Dim bomCode As JsonPageCode
     Dim sizeB As Long
     Dim buff As String
-    Dim vt As VbVarType: vt = VarType(jsonText)
+    Dim vt As VbVarType
+    Dim defProp As Variant
+    Dim isDefProp As Boolean
     '
     If chars.sa.cDims = 0 Then 'Init memory accessors
         InitAccessor VarPtr(bytes), bytes.sa, byteSize
@@ -404,11 +406,29 @@ Public Function Parse(ByRef jsonText As Variant _
         InitAccessor VarPtr(ptrs), ptrs.sa, ptrSize
         isFDict = IsFastDict()
     End If
+    If IsObject(jsonText) Then
+        On Error Resume Next
+        defProp = jsonText
+        On Error GoTo 0
+        vt = VarType(defProp)
+        isDefProp = True
+    Else
+        vt = VarType(jsonText)
+    End If
     If vt = vbString Then
-        chars.sa.pvData = StrPtr(jsonText)
-        sizeB = LenB(jsonText)
+        If isDefProp Then
+            chars.sa.pvData = StrPtr(defProp)
+            sizeB = LenB(defProp)
+        Else
+            chars.sa.pvData = StrPtr(jsonText)
+            sizeB = LenB(jsonText)
+        End If
     ElseIf vt = vbArray + vbByte Or vt = vbArray + vbInteger Then
-        ptrs.sa.pvData = VarPtr(jsonText)
+        If isDefProp Then
+            ptrs.sa.pvData = VarPtr(defProp)
+        Else
+            ptrs.sa.pvData = VarPtr(jsonText)
+        End If
         ptrs.sa.rgsabound0.cElements = 2 'Need 2 for reading 'sizeB'
         '
         vt = CLng(ptrs.arr(0) And &HFFFF&) 'VarType - Little Endian so fine
