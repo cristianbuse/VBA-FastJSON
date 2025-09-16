@@ -78,11 +78,9 @@ Option Private Module
     #End If
 #Else 'Windows
     #If VBA7 Then
-        Private Declare PtrSafe Sub VariantCopy Lib "oleaut32.dll" (ByRef pvargDest As Variant, ByVal pvargSrc As LongPtr)
         Private Declare PtrSafe Function MultiByteToWideChar Lib "kernel32" (ByVal codePage As Long, ByVal dwFlags As Long, ByVal lpMultiByteStr As LongPtr, ByVal cbMultiByte As Long, ByVal lpWideCharStr As LongPtr, ByVal cchWideChar As Long) As Long
         Private Declare PtrSafe Function WideCharToMultiByte Lib "kernel32" (ByVal codePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As LongPtr, ByVal cchWideChar As Long, ByVal lpMultiByteStr As LongPtr, ByVal cbMultiByte As Long, ByVal lpDefaultChar As LongPtr, ByVal lpUsedDefaultChar As LongPtr) As Long
     #Else
-        Private Declare Sub VariantCopy Lib "oleaut32.dll" (ByRef pvargDest As Variant, ByVal pvargSrc As Long)
         Private Declare Function MultiByteToWideChar Lib "kernel32" (ByVal codePage As Long, ByVal dwFlags As Long, ByVal lpMultiByteStr As Long, ByVal cchMultiByte As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long) As Long
         Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal codePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, ByVal lpMultiByteStr As Long, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, ByVal lpUsedDefaultChar As Long) As Long
     #End If
@@ -95,9 +93,8 @@ Option Private Module
 #End If
 
 #If VBA7 = 0 Then
-    Private Enum LongPtr
-        [_]
-    End Enum
+    Private Enum LongPtr: [_]: End Enum
+    Private Enum LONG_PTR: [_]: End Enum
 #End If
 
 Private Enum DataTypeSize
@@ -777,17 +774,18 @@ Private Property Let MemLongPtr(ByVal memAddress As LongPtr _
     #ElseIf TWINBASIC Then
         PutMemPtr memAddress, newValue
     #Else
-        Static pa As PointerAccessor
-        If pa.sa.cDims = 0 Then
-            InitSafeArray pa.sa, ptrSize
-            MemLongPtrRef(VarPtr(pa)) = VarPtr(pa.sa)
-        End If
-        '
-        pa.sa.pvData = memAddress
-        pa.sa.rgsabound0.cElements = 1
-        pa.arr(0) = newValue
-        pa.sa.rgsabound0.cElements = 0
-        pa.sa.pvData = NullPtr
+        Static pa(0) As PointerAccessor
+        With pa(0)
+            If .sa.cDims = 0 Then
+                InitSafeArray .sa, ptrSize
+                WritePtrNatively pa, VarPtr(.sa)
+            End If
+            .sa.pvData = memAddress
+            .sa.rgsabound0.cElements = 1
+            .arr(0) = newValue
+            .sa.rgsabound0.cElements = 0
+            .sa.pvData = NullPtr
+        End With
     #End If
 End Property
 Private Property Get MemLongPtr(ByVal memAddress As LongPtr) As LongPtr
@@ -810,37 +808,10 @@ Private Property Get MemLongPtr(ByVal memAddress As LongPtr) As LongPtr
         pa.sa.pvData = NullPtr
     #End If
 End Property
-
 #If Windows Then
-Private Property Let MemLongPtrRef(ByVal memAddress As LongPtr _
-                                 , ByVal newValue As LongPtr)
-    Const VT_BYREF As Long = &H4000
-    Dim memValue As Variant
-    Dim remoteVT As Variant
-    Dim fv As FakeVariant
-    '
-    fv.ptrs(0) = VarPtr(memValue)
-    fv.vt = vbInteger + VT_BYREF
-    VariantCopy remoteVT, VarPtr(fv) 'Init VarType ByRef
-    '
-#If Win64 Then 'Cannot assign LongLong ByRef
-    Dim c As Currency
-    RemoteAssign memValue, VarPtr(newValue), remoteVT, vbCurrency + VT_BYREF, c, memValue
-    RemoteAssign memValue, memAddress, remoteVT, vbCurrency + VT_BYREF, memValue, c
-#Else 'Can assign Long ByRef
-    RemoteAssign memValue, memAddress, remoteVT, vbLong + VT_BYREF, memValue, newValue
-#End If
-End Property
-Private Sub RemoteAssign(ByRef memValue As Variant _
-                       , ByRef memAddress As LongPtr _
-                       , ByRef remoteVT As Variant _
-                       , ByVal newVT As VbVarType _
-                       , ByRef targetVariable As Variant _
-                       , ByRef newValue As Variant)
-    memValue = memAddress
-    remoteVT = newVT
-    targetVariable = newValue
-    remoteVT = vbEmpty
+'https://github.com/WNKLER/RefTypes/discussions/3#discussion-8595790
+Private Sub WritePtrNatively(ByRef ptrs() As LONG_PTR, ByVal ptr As LongPtr)
+    ptrs(0) = ptr
 End Sub
 #End If
 
