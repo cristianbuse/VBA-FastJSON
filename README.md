@@ -53,6 +53,14 @@ Download the [latest release](https://github.com/cristianbuse/VBA-FastJSON/relea
 
 Many thanks to Nicolas Seriot ([@nst](https://github.com/nst)). This repo includes some of the tests found at [JSONTestSuite](https://github.com/nst/JSONTestSuite). A must-read, see his article: [Parsing JSON is a Minefield](https://seriot.ch/projects/parsing_json.html)!
 
+## Other utilities
+
+```EncodeURI```
+- encodes arbitrary UTF16LE data in a URI (URL or URN)
+- does not throw errors
+- returns a UTF16LE text or a null string if wrong input
+- any encoded character will have the corresponding UTF8 bytes encoded as a [percentage-format](https://en.wikipedia.org/wiki/Percent-encoding) in UTF16LE text
+
 ## Demo
 
 ```VBA
