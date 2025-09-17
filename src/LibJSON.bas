@@ -332,6 +332,7 @@ Public Type ParseResult
     Value As Variant
     IsValid As Boolean
     Error As String
+    Position As Long
 End Type
 
 '*******************************************************************************
@@ -488,7 +489,8 @@ Public Function Parse(ByRef jsonText As Variant _
     jOptions.failIfLoneSurrogate = failIfLoneSurrogate
     jOptions.maxDepth = maxNestingDepth 'Negative numbers will allow 0 depth
     '
-    Parse.IsValid = ParseChars(chars.arr, jOptions, Parse.Value, Parse.Error)
+    Parse.IsValid = ParseChars(chars.arr, jOptions, Parse.Value, Parse.Error _
+                                                               , Parse.Position)
 Clean:
     chars.sa.rgsabound0.cElements = 0: chars.sa.pvData = NullPtr
     bytes.sa.rgsabound0.cElements = 0: bytes.sa.pvData = NullPtr
@@ -820,6 +822,7 @@ Private Function ParseChars(ByRef inChars() As Integer _
                           , ByRef inOptions As JSONOptions _
                           , ByRef v As Variant _
                           , ByRef outError As String _
+                          , ByRef outPosition As Long _
                           , Optional ByVal vMissing As Variant) As Boolean
     Static cm As CharacterMap
     Static buff As IntegerAccessor
@@ -1140,10 +1143,11 @@ ErrorHandler:
     Else
         outError = Err.Description
     End If
+    outPosition = i + 1
     If i > ub Then
         outError = outError & " at end of JSON input"
     Else
-        outError = outError & " at char position " & i + 1
+        outError = outError & " at char position " & outPosition
     End If
     v = vMissing
 End Function
