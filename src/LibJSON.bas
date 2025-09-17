@@ -810,7 +810,7 @@ Private Property Get MemLongPtr(ByVal memAddress As LongPtr) As LongPtr
         pa.sa.pvData = NullPtr
     #End If
 End Property
-#If Windows Then
+#If Windows And (TWINBASIC = 0) Then
 'https://github.com/WNKLER/RefTypes/discussions/3#discussion-8595790
 Private Sub WritePtrNatively(ByRef ptrs() As LONG_PTR, ByVal ptr As LongPtr)
     ptrs(0) = ptr
