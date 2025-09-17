@@ -2197,3 +2197,157 @@ Private Function Encode(ByVal jsonPtr As LongPtr _
     If Not Encode Then outErrDesc = "Unicode conversion failed"
 #End If
 End Function
+
+'*******************************************************************************
+'Encodes arbitrary UTF16LE data in a URI (URL or URN)
+'https://en.wikipedia.org/wiki/Percent-encoding#Percent-encoding_in_a_URI
+' - Encodes everything except 'Unreserved Characters'
+' - Does not throw
+' - Returns a UTF16LE text or a null string if wrong input
+' - Any encoded character will use the UTF8 codes
+'   For example, the smiley character U+1F60A can be represented in UTF16LE with
+'   4 bytes: ChrW$(&HD83D) & ChrW$(&HDE0A). We do not encode bytes 3D D8 0A DE.
+'   Instead we convert to UTF8 bytes F0 9F 98 8A and only then return those as
+'   a UTF16LE percent format: %F0%9F%98%8A
+'Parameters:
+' * dataUTF16LEt: String or Byte / Integer 1D array
+' * spaceAsPlus: defines how the Space character (code 32 / 0x20) is encoded
+'     - False (Default): %20
+'     - True:            +
+'*******************************************************************************
+Public Function EncodeURI(ByRef dataUTF16LE As Variant _
+                        , Optional ByVal spaceAsPlus As Boolean = False) As String
+    Const pArrayOffset As Long = 8
+    Const defaultChar As Long = &HFFFD&
+    Static chars As IntegerAccessor
+    Static ptrs As PointerAccessor
+    Static map(0 To 255) As EncodedString
+    Dim sizeW As Long
+    Dim vt As VbVarType
+    Dim i As Long
+    Dim j As Long
+    Dim codepoint As Long
+    Dim lowSurrogate As Long
+    Dim buff As String
+    Dim defProp As Variant
+    Dim isDefProp As Boolean
+    '
+    If chars.sa.cDims = 0 Then
+        InitAccessor VarPtr(chars), chars.sa, intSize
+        InitAccessor VarPtr(ptrs), ptrs.sa, ptrSize
+        For i = 0 To 255
+            Select Case i
+            Case 0 To 15
+                map(i).s = "%0" & Hex(i)
+                map(i).sLen = 3
+            Case 45 To 46, 48 To 57, 65 To 90, 95, 97 To 122, 126
+                map(i).s = Chr$(i) '-._~0-9A-Za-z
+                map(i).sLen = 1
+            Case Else
+                map(i).s = "%" & Hex(i)
+                map(i).sLen = 3
+            End Select
+        Next i
+    End If
+    If spaceAsPlus Xor map(32).sLen = 1 Then
+        If spaceAsPlus Then
+            map(32).s = "+"
+            map(32).sLen = 1
+        Else
+            map(32).s = "%20"
+            map(32).sLen = 3
+        End If
+    End If
+    If IsObject(dataUTF16LE) Then
+        On Error Resume Next
+        defProp = dataUTF16LE
+        On Error GoTo 0
+        vt = VarType(defProp)
+        isDefProp = True
+    Else
+        vt = VarType(dataUTF16LE)
+    End If
+    If vt = vbString Then
+        If isDefProp Then
+            chars.sa.pvData = StrPtr(defProp)
+            sizeW = Len(defProp)
+        Else
+            chars.sa.pvData = StrPtr(dataUTF16LE)
+            sizeW = Len(dataUTF16LE)
+        End If
+    ElseIf vt = vbArray + vbByte Or vt = vbArray + vbInteger Then
+        If isDefProp Then
+            ptrs.sa.pvData = VarPtr(defProp)
+        Else
+            ptrs.sa.pvData = VarPtr(dataUTF16LE)
+        End If
+        ptrs.sa.rgsabound0.cElements = 2 'Need 2 for reading 'sizeW'
+        '
+        vt = CLng(ptrs.arr(0) And &HFFFF&) 'VarType - Little Endian so fine
+        ptrs.sa.pvData = ptrs.sa.pvData + pArrayOffset 'Read pointer in Variant
+        If vt And VT_BYREF Then ptrs.sa.pvData = ptrs.arr(0)
+        If ptrs.arr(0) = NullPtr Then GoTo Clean
+        ptrs.sa.pvData = ptrs.arr(0) 'SAFEARRAY address i.e. ArrPtr
+        '
+        'Check for One-Dimensional
+        If CLng(ptrs.arr(0) And &HFF&) <> 1& Then GoTo Clean
+        '
+        ptrs.sa.pvData = ptrs.sa.pvData + pvDataOffset
+        chars.sa.pvData = ptrs.arr(0) 'Data address
+        sizeW = CLng(ptrs.arr(1) And &H7FFFFFFF)  '# of array elements
+        If vt = vbArray + vbByte Then sizeW = sizeW \ 2
+    Else
+        GoTo Clean
+    End If
+    '
+    If sizeW = 0 Then GoTo Clean
+    chars.sa.rgsabound0.cElements = sizeW
+    '
+    i = 0
+    j = 1
+    buff = Space$(sizeW * 6)
+    Do While i < sizeW
+        codepoint = chars.arr(i) And &HFFFF&
+        If codepoint >= &HD800& And codepoint <= &HDBFF& Then 'High surrogate
+            If i < sizeW - 1 Then
+                lowSurrogate = chars.arr(i + 1) And &HFFFF&
+                If &HDC00& <= lowSurrogate And lowSurrogate <= &HDFFF& Then
+                    codepoint = (codepoint - &HD800&) * &H400& _
+                              + (lowSurrogate - &HDC00&) + &H10000
+                    i = i + 1
+                Else
+                    codepoint = defaultChar
+                End If
+            Else
+                codepoint = defaultChar
+            End If
+        End If
+        If codepoint < &H80& Then
+             Mid$(buff, j) = map(codepoint).s
+             j = j + map(codepoint).sLen
+        ElseIf codepoint < &H800& Then
+            Mid$(buff, j) = map(&HC0& Or ((codepoint And &H7C0&) \ &H40&)).s
+            Mid$(buff, j + 3) = map(&H80& Or (codepoint And &H3F&)).s
+            j = j + 6
+        ElseIf codepoint < &H10000 Then
+            If (codepoint >= &HDC00&) And (codepoint < &HE000&) Then
+                codepoint = defaultChar 'Lonely low surrogate
+            End If
+            Mid$(buff, j) = map(&HE0& Or ((codepoint And &HF000&) \ &H1000&)).s
+            Mid$(buff, j + 3) = map(&H80& Or ((codepoint And &HFC0&) \ &H40&)).s
+            Mid$(buff, j + 6) = map(&H80& Or (codepoint And &H3F&)).s
+            j = j + 9
+        Else
+            Mid$(buff, j) = map(&HF0& Or ((codepoint And &H1C0000) \ &H40000)).s
+            Mid$(buff, j + 3) = map(&H80& Or ((codepoint And &H3F000) \ &H1000&)).s
+            Mid$(buff, j + 6) = map(&H80& Or ((codepoint And &HFC0&) \ &H40&)).s
+            Mid$(buff, j + 9) = map(&H80& Or (codepoint And &H3F&)).s
+            j = j + 12
+        End If
+        i = i + 1
+    Loop
+    EncodeURI = Left$(buff, j - 1)
+Clean:
+    chars.sa.rgsabound0.cElements = 0: chars.sa.pvData = NullPtr
+    ptrs.sa.rgsabound0.cElements = 0:  ptrs.sa.pvData = NullPtr
+End Function
