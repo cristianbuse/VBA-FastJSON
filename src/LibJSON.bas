@@ -2233,6 +2233,7 @@ Public Function EncodeURI(ByRef dataUTF16LE As Variant _
     Dim codepoint As Long
     Dim lowSurrogate As Long
     Dim buff As String
+    Dim bLen As Long
     Dim defProp As Variant
     Dim isDefProp As Boolean
     '
@@ -2309,8 +2310,13 @@ Public Function EncodeURI(ByRef dataUTF16LE As Variant _
     '
     i = 0
     j = 1
-    buff = Space$(sizeW * 6)
+    bLen = sizeW * 2 + 12
+    buff = Space$(bLen)
     Do While i < sizeW
+        If j + 12 > bLen Then
+            buff = buff & Space$(bLen)
+            bLen = bLen * 2
+        End If
         codepoint = chars.arr(i) And &HFFFF&
         If codepoint >= &HD800& And codepoint <= &HDBFF& Then 'High surrogate
             If i < sizeW - 1 Then
